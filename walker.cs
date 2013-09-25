@@ -179,10 +179,13 @@ namespace NinjaTrader.Strategy
 				//	SetTrailStop(35);
 			//		sell=true;
 				// detect first close above the entry and thn below
-				if(watch_up!=0&&!closedAbove&&(pos>0&&Closes[3][0]>currentEntry||pos<0&&Closes[2][0]<currentEntry)){
+			/*	if(watch_up!=0&&!closedAbove&&(pos>0&&Closes[5][0]>=currentEntry||pos<0&&Closes[4][0]<=currentEntry)){
 					closedAbove=true;
 					log("CLOSED ABOVE ask="+Closes[2][0]+";bid="+Closes[3][0]);
-				}
+					DrawDot("dm2"+CurrentBars[1],true,0,watch_down-0.25,Color.BlanchedAlmond);
+					DrawText( "tm2"+CurrentBars[1],true,"CLOSED ABOVE ",0,watch_down-0.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+					
+				}*/
 			//	if(!pendingPosition&&(pos>0&&Closes[3][0]<currentEntry-(enteredRange/4)/2||pos<0&&Closes[2][0]>currentEntry+(enteredRange/4)/2))
 			//		sell=true;
 				
@@ -212,8 +215,8 @@ namespace NinjaTrader.Strategy
 								innerTarget=(int)(Math.Max(((Closes[3][0]-watch_down)/2)*4,2));
 								innerStop=(int)((watch_up-Closes[3][0])*4+4);
 								log("000000  SET INNER WATCH UP");
-								DrawDiamond("dm2"+CurrentBars[1],true,0,watch_down-0.25,Color.Red);
-								DrawText( "tm2"+CurrentBars[1],true,"CLOSED BELOW REVERSAL",0,watch_down-0.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+								DrawDiamond("dm2"+CurrentBars[1],true,0,watch_down-0.75,Color.Red);
+								DrawText( "tm2"+CurrentBars[1],true,"CLOSED BELOW REVERSAL",0,watch_down-1,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 							}
 						}
 					}
@@ -304,6 +307,10 @@ namespace NinjaTrader.Strategy
 										enteredPeriod=r;
 										log("$$$ START WATCH target="+target+";range="+enteredRange+";rangePeriod="+enteredPeriod+";rm="+rm+";abdn="+abdn+";abup="+abup);
 										DrawDiamond("dm"+CurrentBars[1],true,0,watch_up+0.25,Color.Blue);
+										if(gainTotal>0)
+											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,0,watch_up+0.25,20,Color.Green, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+										else
+											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,0,watch_up+0.25,20,Color.Red, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 										break;
 									}
 									
@@ -382,11 +389,11 @@ namespace NinjaTrader.Strategy
 					}
 				}
 				if(pos==0&&(iTime>=iLastEntryTime&&iTime<iRestartTime/*/||iTime<iStartTime*/)){
-					//watch=0;
+					//watch=0;99
 					return;
 				}
 			
-				if(!innerWatch&&!closedAbove&&!pendingPosition&&(pos>0&&ask<watch_up-0.50&&ask<currentEntry+0.25||pos<0&&bid>watch_down+0.50&&bid>currentEntry+0.25)){
+				if(watch_up!=0&&!innerWatch/*&&!closedAbove*/&&!pendingPosition&&(pos>0&&ask<watch_up-0.50&&ask<currentEntry+0.25||pos<0&&bid>watch_down+0.50&&bid>currentEntry+0.25)){
 					sell=true;
 					log(" SELL TRIGGER ON NO CLOSE REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down);
 					DrawDiamond("dm2"+CurrentBars[1],true,0,watch_down-0.25,Color.BlanchedAlmond);
@@ -394,7 +401,7 @@ namespace NinjaTrader.Strategy
 					innerWatch=true;
 					watch=false;
 					watch_up=0;
-					watch_down=0;
+					//watch_down=0;
 					if(pos>0){
 						innerDir=-1;
 					}
