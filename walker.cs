@@ -386,11 +386,20 @@ namespace NinjaTrader.Strategy
 					return;
 				}
 			
-				if(!closedAbove&&!pendingPosition&&(pos>0&&ask<watch_up||pos<0&&bid>watch_down)){
+				if(!innerWatch&&!closedAbove&&!pendingPosition&&(pos>0&&ask<watch_up||pos<0&&bid>watch_down)){
 					sell=true;
 					log(" SELL TRIGGER ON NO CLOSE REVERSAL");
 					DrawDiamond("dm2"+CurrentBars[1],true,0,watch_down-0.25,Color.BlanchedAlmond);
 					DrawText( "tm2"+CurrentBars[1],true,"NAKED REVERSAL",0,watch_down-0.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+					innerWatch=true;
+					if(pos>0){
+						innerDir=-1;
+					}
+					else{
+						innerDir=1;
+					}
+					innerTarget=6;
+					innerStop=12;
 				}				
 				if(innerWatch&&pos==0){
 						dir=innerDir;
