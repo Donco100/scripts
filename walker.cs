@@ -42,7 +42,9 @@ namespace NinjaTrader.Strategy
 		int dir=0;
 		int c=0;
 		private string name=""; 
-		double gainTotal=0;
+		
+		double gainTotal=0;																	
+		
 		private bool pendingPosition=false;
 		private bool pendingLongEntry=false;
 		private bool pendingShortEntry=false;
@@ -96,7 +98,7 @@ namespace NinjaTrader.Strategy
 		int pendingBar=0;		
 		int currentBar=0;
 		bool drawRange=false;
-		
+		int lineCount=0;																								//shift text lines on the chart so that they do not overlap
 		
 		DateTime firstTime;
 		bool trailStop=false;
@@ -163,8 +165,7 @@ namespace NinjaTrader.Strategy
 			
 			if(BarsInProgress==0){																					// only on 5 minute bars
 				int iTime=ToTime(Time[0]);	
-				//if(iTime>=iLastEntryTime||iTime<iStartTime){
-				if((iTime>=iLastEntryTime&&iTime<iRestartTime/*/||iTime<iStartTime*/)){
+				if((iTime>=iLastEntryTime&&iTime<iRestartTime)){													// detect regular trading pause TODO: get trading hours from the exchange to support short days
 					watch=false;
 					innerWatch=false;
 					return;
@@ -172,16 +173,23 @@ namespace NinjaTrader.Strategy
 				if(CurrentBar==currentBar)
 					return;
 				currentBar=CurrentBar;
-				if(drawRange){
-					//log("DRAW LINE rangeStartBar="+rangeStartBar+";CurrentBar="+CurrentBars[0]);
+				
+				#region Range Chart Drawing
+				if(drawRange){																						// delayed drawing of the range lines on a 5min tick
 					int startingBar=CurrentBars[0]-rangeStartBar+enteredPeriod;
-					DrawLine("uwline"+rangeStartBar,true,startingBar,watch_up,1,watch_up,Color.DarkOliveGreen,DashStyle.Solid,1);
-					DrawLine("dwline"+rangeStartBar,true,startingBar,watch_down,1,watch_down,Color.DarkBlue,DashStyle.Solid,1);
-					DrawLine("mline"+ rangeStartBar,true,startingBar,watch_median,1,watch_median,Color.DarkGray,DashStyle.Dash,1);
-					DrawText( "t"+rangeStartBar,true,"R:"+enteredRange+"  Tgt:"+target+ "  Stop:"+stop+"  Prd:"+enteredPeriod,CurrentBars[0]-rangeStartBar+enteredPeriod,watch_up+0.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+					DrawLine("uwline"+rangeStartBar,true,startingBar,watch_up,1,
+						watch_up,Color.DarkOliveGreen,DashStyle.Solid,1);
+					DrawLine("dwline"+rangeStartBar,true,startingBar,watch_down,1,
+						watch_down,Color.DarkBlue,DashStyle.Solid,1);
+					DrawLine("mline"+ rangeStartBar,true,startingBar,watch_median,1,
+						watch_median,Color.DarkGray,DashStyle.Dash,1);
+					DrawText( "t"+rangeStartBar,true,"R:"+enteredRange+"  Tgt:"
+						+target+ "  Stop:"+stop+"  Prd:"+enteredPeriod,CurrentBars[0]
+						-rangeStartBar+enteredPeriod,watch_up+lineNum()*0.25,20,Color.Black, 
+						new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 					drawRange=false;	
-						
 				}
+				#endregion
 				int pos= dirOfPosition();
 				if(watch&&(pos>0&&Closes[5][0]>=watch_up+0.25||pos<0&&Closes[4][0]<=watch_down+0.25)){
 					if(++closedAboveCounter>86){
@@ -284,9 +292,9 @@ namespace NinjaTrader.Strategy
 										log("START WATCH target="+target+";range="+enteredRange+";rangePeriod="+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";innerWatch="+innerWatch+";innerWatchTriggered="+innerWatchTriggered);
 										DrawDiamond("dm"+CurrentBars[1],true,0,watch_up+0.25,Color.Blue);
 										if(gainTotal>0)
-											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,0,watch_up+0.25,20,Color.Green, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,0,watch_up+lineNum()*0.25,20,Color.Green, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 										else
-											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,0,watch_up+0.25,20,Color.Red, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,0,watch_up+lineNum()*0.25,20,Color.Red, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 										break;
 										//}
 										
@@ -371,8 +379,8 @@ namespace NinjaTrader.Strategy
 				}
 			
 				if(!innerWatchTriggered&&!innerWatch/*&&!closedAbove*/&&!pendingPosition													
-					&&(pos>0&&ask<watch_up-0.25&&ask<currentEntry+0.50
-						||pos<0&&bid>watch_down+0.25&&bid>currentEntry+0.50)){																//loss stop outside the range
+					&&(pos>0&&ask<watch_up-0.25&&ask<currentEntry+0.25
+						||pos<0&&bid>watch_down+0.25&&bid>currentEntry+0.25)){																//loss stop outside the range
 					reverse(ask,bid,pos,true);																								//outer (outside the range) reversal	
 					//innerWatch=true;																									
 					innerWatchTriggered=true;																								//do it once per range
@@ -386,7 +394,7 @@ namespace NinjaTrader.Strategy
 						log("Pickup innerWatch dir="+dir+";target="+target+";stop="+stop);
 				}
 				if(!trade_active&&watch){																									//if broke through the range long
-					if(bid>watch_up+0.5){																									//if broke up 
+					if(bid>watch_up+0.25){																									//if broke up 
 						innerWatch=false;																									//reset secondary watch
 						innerWatchTriggered=false;
 						if(pos==0){																											//opening a new range 
@@ -400,7 +408,7 @@ namespace NinjaTrader.Strategy
 							reverse(ask,bid,pos,false);
 						}
 					}
-					else if(ask<watch_down-0.5){
+					else if(ask<watch_down-0.25){					
 						innerWatch=false;
 						innerWatchTriggered=false;
 						if(pos==0){
@@ -488,53 +496,50 @@ namespace NinjaTrader.Strategy
 			
 			}
 		}
+		//<summary>
+		//
+		//
+		//
+		
 		protected void reverse(double ask, double bid,int pos,bool inner){
-					sell=true;
-					
-					DrawDiamond("dm2"+CurrentBars[1],true,0,watch_down-0.25,Color.BlanchedAlmond);
-					if(inner)
-					DrawText( "tm2"+CurrentBars[1],true,"I-R",0,watch_down-1.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-					else
-					DrawText( "tm2"+CurrentBars[1],true,"O-R",0,watch_down-2.25,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-					
-					int tgt=enteredRange+3;//+2;;
-					int stp=(int)stop;
-					//watch=false;
-					if(pos>0){
-						innerDir=-1;
-						if (inner){
-							tgt=(int)((bid-watch_down)*4-1)/3;//enteredRange/2;
-							stp=(int)((watch_up-ask)*4+1);
-						}
-					}
-					else{
-						innerDir=1;
-						if (inner){
-							tgt=(int)((watch_up-ask)*4-1)/3;//enteredRange/2;
-							stp=(int)((bid-watch_down)*4+1);
-						}
-					
-					}
-					if(tgt>1){
-						sell=true;
-						
-						DrawDiamond("dm2"+CurrentBars[1],true,0,watch_down-0.25,Color.BlanchedAlmond);
-						if(inner)
-							DrawText( "tm2"+CurrentBars[1],true,"I-R",0,watch_down-1.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-						else
-							DrawText( "tm2"+CurrentBars[1],true,"O-R",0,watch_down-2.25,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-						
-						drawRange=true;
-						innerWatch=true;
-						innerTarget=tgt;
-						innerStop=stp;
-						log("REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down+";tgt="+tgt+";stp="+stp);
-					}
-					else {
-						log("TARGET TOO SMALL TO REVERSE target="+target);
-						innerWatch=false;
-						innerWatchTriggered=true;
-					}
+			int tgt=enteredRange+3;//+2;;
+			int stp=(int)stop;
+
+			if(pos>0){
+				innerDir=-1;
+				if (inner){
+					tgt=(int)((bid-watch_down)*4)-2;//enteredRange/2;
+					stp=(int)((watch_up-ask)*4+1);
+				}
+			}
+			else{
+				innerDir=1;
+				if (inner){
+					tgt=(int)((watch_up-ask)*4)-2;//enteredRange/2;
+					stp=(int)((bid-watch_down)*4+1);
+				}
+			
+			}
+			if(tgt>1){
+				sell=true;
+				
+				DrawDiamond("dm2"+CurrentBars[1],true,0,watch_down-0.25,Color.BlanchedAlmond);
+				if(inner)
+					DrawText( "tm2"+CurrentBars[1],true,"I-R "+gainTotal.ToString("c"),0,watch_down-lineNum()*0.25,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+				else
+					DrawText( "tm2"+CurrentBars[1],true,"O-R "+gainTotal.ToString("c"),0,watch_down-lineNum()*0.25,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+				
+				drawRange=true;
+				innerWatch=true;
+				innerTarget=tgt;
+				innerStop=stp;
+				log("REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down+";tgt="+tgt+";stp="+stp);
+			}
+			else {
+				log("TARGET TOO SMALL TO REVERSE target="+target);
+				innerWatch=false;
+				innerWatchTriggered=true;
+			}
 		}
 		/*protected override void OnMarketData(MarketDataEventArgs e){
 		//extra chance for on close exit - on bid and ask updates	
@@ -737,6 +742,12 @@ namespace NinjaTrader.Strategy
 			{
 				file.WriteLine(t.ToString("MM-dd HH:mm:ss")+":"+line);
 			}
+		}
+		protected int lineNum(){
+			int ret=lineCount++;
+			if(lineCount>5)
+				lineCount=0;
+			return ret;
 		}
         #region Properties
        /* [Description("")]
