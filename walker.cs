@@ -73,9 +73,16 @@ namespace NinjaTrader.Strategy
 		bool trade_active=false;
 		int total=0;
 		bool vv=true;
+		//watch:
 		bool watch=false;
 		double watch_up=0;
 		double watch_down=0;
+		double watch_median=0;
+		bool innerWatch=false;
+		int innerDir=0;
+		int innerTarget;
+		int innerStop;
+		
 		string orderID;
 		int rangeStartBar=0;
 		int enteredBar=0;
@@ -90,10 +97,7 @@ namespace NinjaTrader.Strategy
 		int currentBar=0;
 		bool drawRange=false;
 		
-		bool innerWatch=false;
-		int innerDir=0;
-		int innerTarget;
-		int innerStop;
+		
 		DateTime firstTime;
 		bool trailStop=false;
 		int closedAboveCounter=0;
@@ -189,54 +193,6 @@ namespace NinjaTrader.Strategy
 					closedAboveCounter=0;	
 				}
 				
-				
-				//if(!pendingPosition&&(pos>0&&Closes[3][0]>currentEntry+(enteredRange/4)/3||pos<0&&Closes[2][0]<currentEntry-(enteredRange/4)/3))
-				//	SetTrailStop(35);
-			//		sell=true;
-				// detect first close above the entry and thn below
-			/*	if(!innerWatchTriggered&&watch_up!=0&&!closedAbove&&(pos>0&&Closes[5][0]>=currentEntry||pos<0&&Closes[4][0]<=currentEntry)){
-					closedAbove=true;
-					log("CLOSED ABOVE ask="+Closes[2][0]+";bid="+Closes[3][0]);
-					DrawDot("dm2"+CurrentBars[1],true,0,watch_down-0.25,Color.BlanchedAlmond);
-					DrawText( "tm2"+CurrentBars[1],true,"CLOSED ABOVE ",0,watch_down-0.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-					
-				}*/
-			//	if(!pendingPosition&&(pos>0&&Closes[3][0]<currentEntry-(enteredRange/4)/2||pos<0&&Closes[2][0]>currentEntry+(enteredRange/4)/2))
-			//		sell=true;
-				/*
-				if(closedAbove&&!pendingPosition&&(pos>0&&Closes[3][0]<currentEntry-0.25||pos<0&&Closes[2][0]>currentEntry+0.25)){
-					sell=true;
-					log(" SELL TRIGGER ON CLOSED ABOVE REVERSAL");
-					closedAbove=false;
-					if(pos>0){
-						double mark=((enteredRange/4)*3)/4;
-						if(Closes[3][0]<watch_up-mark){
-							innerWatch=true;
-							innerDir=-1;
-							innerTarget=(int)(Math.Max(((watch_up-Closes[2][0])/2)*4,2));
-							innerStop=(int)((Closes[2][0]-watch_down)*4+4);
-							log("000000  SET INNER WATCH DOWN");
-							DrawDiamond("dm2"+CurrentBars[1],true,0,watch_up+0.25,Color.Red);
-							DrawText( "tm2"+CurrentBars[1],true,"CLOSED ABOVE REVERSAL",0,watch_up+0.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-					
-						}
-					}
-					else {
-						if(pos<0){
-							double mark=((enteredRange/4)*3)/4;
-							if(Closes[2][0]>watch_down+mark){
-								innerWatch=true;
-								innerDir=1;
-								innerTarget=(int)(Math.Max(((Closes[3][0]-watch_down)/2)*4,2));
-								innerStop=(int)((watch_up-Closes[3][0])*4+4);
-								log("000000  SET INNER WATCH UP");
-								DrawDiamond("dm2"+CurrentBars[1],true,0,watch_down-0.75,Color.Red);
-								DrawText( "tm2"+CurrentBars[1],true,"CLOSED BELOW REVERSAL",0,watch_down-1,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-							}
-						}
-					}
-				}
-				*/
 				if(CurrentBars[0]>rangePeriod&&!pendingPosition&&!watch){
 					//range detection
 					closedAbove=false;
@@ -318,7 +274,8 @@ namespace NinjaTrader.Strategy
 										watch=true;
 										watch_up=mxh;
 										watch_down=mnh;
-										 target=Math.Max((int)(enteredRange/4)/4,2);	// right?
+										watch_median=mnh+(mxh-mnh)/2;
+										target=Math.Max((int)(enteredRange/4)/4,2);	// right?
 									   //target=Math.Max((int)((enteredRange+enteredPeriod)/3),2);	
 										rangeStartBar=CurrentBars[0];
 										enteredPeriod=r;
@@ -485,6 +442,9 @@ namespace NinjaTrader.Strategy
 				}
 				else if(pos>0&&(bid>=currentEntry+target/4+adj||sell)){
 					log("EXIT LONG: ask="+ask+";bid="+bid);
+					if(bid<=watch_up&&bid>watch_median){
+						reverse(ask,bid,pos,true);
+					}
 					if(!sell)
 						watch=false;
 					spreadExitLongMarket();
@@ -492,7 +452,7 @@ namespace NinjaTrader.Strategy
 				else if(!trailStop&&pos>0&&(bid>=currentEntry+3/4)){
 					log("SET TRAIL STOP: ask="+ask+";bid="+bid);
 					trailStop=true;
-					SetTrailStop(55);
+					//SetTrailStop(55);
 				}
 				else if(pos>0&&bid<=currentEntry-stop/4-adj&&BarsInProgress==0){
 					log("STOP LONG: ask="+ask+";bid="+bid);
@@ -501,13 +461,16 @@ namespace NinjaTrader.Strategy
 				}
 				else if(pos<0&&(ask<=currentEntry-target/4+adj*2||sell)/*&&BarsInProgress==0*/){
 					log("EXIT SHORT: ask="+ask+";bid="+bid);
+					if(ask>=watch_down&&ask<watch_median){
+						reverse(ask,bid,pos,true);
+					}
 					if(!sell)			// keep watch on reversals
 						watch=false;
 					spreadExitShortMarket();
 				}
 				else if(!trailStop&&pos<0&&(ask<=currentEntry-3/4)){
 					log("SET TRAIL STOP: ask="+ask+";bid="+bid);
-					SetTrailStop(55);
+					//SetTrailStop(55);
 					trailStop=true;
 				}
 				else if(pos<0&&ask>=currentEntry+stop/4-adj*2&&BarsInProgress==0){
@@ -548,17 +511,17 @@ namespace NinjaTrader.Strategy
 					if(pos>0){
 						innerDir=-1;
 						//if (inner)
-						//	tgt=(int)(bid-watch_down)*4-1;//enteredRange/2;
+							tgt=(int)(bid-watch_down)*4-1;//enteredRange/2;
 					
 					}
 					else{
 						innerDir=1;
 						//if (inner)
-						//	tgt=(int)(watch_up-ask)*4-1;//enteredRange/2;
+							tgt=(int)(watch_up-ask)*4-1;//enteredRange/2;
 					
 					}
 					
-					innerTarget=tgt/4;
+					innerTarget=tgt;
 					innerStop=12;
 		}
 		/*protected override void OnMarketData(MarketDataEventArgs e){
