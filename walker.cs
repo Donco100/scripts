@@ -213,7 +213,7 @@ namespace NinjaTrader.Strategy
 						
 						double wr=mxh-mnh;																			// wide range, high to lows
 						double nr=mx-mn;										    								// narrow range, for bodies only	
-						if(nr<=range/4&&nr>=3/4){								   									// max range					
+						if(nr<=range/4&&nr>=4/4){								   									// max range					
 										
 							double rm=mnh+wr/2;																		// range median
 							
@@ -388,7 +388,7 @@ namespace NinjaTrader.Strategy
 				}				
 				if(bounceTriggered&&pos==0){																									//secondary (inner) watch detector and  pick-up (delayed trade initialization) clause
 						dir=innerDir;
-						outerTrade=false;
+						
 						trade_active=true;
 						bounceTriggered=false;
 						target=innerTarget;
@@ -410,8 +410,9 @@ namespace NinjaTrader.Strategy
 							//range is reset completely as if no history
 						}
 						else if(pos<0){																										//if already short reverse 
-							outerTrade=true;
+							
 							reverse(ask,bid,pos,false);																						// outer reversal
+							outerTrade=true;
 							log("SHORT OUTER REVERSAL breakRange=true;");
 							breakRange=true;	
 						}
@@ -429,9 +430,9 @@ namespace NinjaTrader.Strategy
 							breakRange=false;
 						}
 						else if(pos>0){
-						    outerTrade=true;
+						    
 							reverse(ask,bid,pos,false);	
-																					//outer reversal
+							outerTrade=true;														//outer reversal
 							log("LONG OUTER REVERSAL breakRange=true;"); 
 							breakRange=true;	
 						}
@@ -539,7 +540,7 @@ namespace NinjaTrader.Strategy
 		protected void reverse(double ask, double bid,int pos,bool inner){
 			
 			sell=true;
-			
+			outerTrade=false;			// if it is in fact outer trade, the caller will reset it back
 			int tgt=enteredRange+3;//+2;;
 			int stp=(int)stop;
 
