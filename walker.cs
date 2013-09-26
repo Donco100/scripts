@@ -83,7 +83,7 @@ namespace NinjaTrader.Strategy
 		double watch_up=0;
 		double watch_down=0;
 		double watch_median=0;
-		bool bounceWatch=false;																							//goes in effect on reversal to get into oscillating (bouncing) mode within the range
+		bool bounceTriggered=false;																							//goes in effect on reversal to get into oscillating (bouncing) mode within the range
 		int innerDir=0;
 		int innerTarget;
 		int innerStop;
@@ -174,7 +174,7 @@ namespace NinjaTrader.Strategy
 				int iTime=ToTime(Time[0]);	
 				if((iTime>=iLastEntryTime&&iTime<iRestartTime)){													// detect regular trading pause TODO: get trading hours from the exchange to support short days
 					watch=false;
-					bounceWatch=false;
+					bounceTriggered=false;
 					return;
 				}
 				if(CurrentBar==currentBar)
@@ -273,7 +273,7 @@ namespace NinjaTrader.Strategy
 									int lastAsk=ToTime(Times[4][0]);
 									if((ToTime(Time[0])-lastBid<60)&&ToTime(Time[0])-lastAsk<60){					//gap less than 60 secs
 									//Starting a new range:
-										bounceWatch=false;															//reset secondary (bounce) watch
+										bounceTriggered=false;														//reset secondary (bounce) watch
 										breakRange=false;															//reset hard break of the range indicator
 										watch=true;																	//set watch indicator
 										watch_up=mxh;
@@ -284,8 +284,8 @@ namespace NinjaTrader.Strategy
 										rangeStartBar=CurrentBars[0];
 										enteredPeriod=r;
 										log("START WATCH target="+target+";range="+enteredRange+";rangePeriod="
-										+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";bounceWatch="
-										+bounceWatch+";breakRange="+breakRange);
+										+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="
+										+bounceTriggered+";breakRange="+breakRange);
 										DrawDiamond("dm"+CurrentBars[1],true,0,watch_up+0.25,Color.Blue);
 										if(gainTotal>0)
 											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
@@ -308,7 +308,7 @@ namespace NinjaTrader.Strategy
 				}
 			
 				//if(watch&&!trade_active)
-				//	log("$$$ WATCH UP="+watch_up+";DOWN="+watch_down+";bounceWatch="+bounceWatch+";breakRange="+breakRange);
+				//	log("$$$ WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="+bounceTriggered+";breakRange="+breakRange);
 				if(pos>0){
 					if(Closes[5][0]>currentEntry&&Closes[5][0]>Closes[5][1]){
 						adj+=0.25;
@@ -378,23 +378,24 @@ namespace NinjaTrader.Strategy
 					return;
 				}
 			
-				if(!breakRange&&!bounceWatch&&!pendingPosition													
+				if(!breakRange&&!bounceTriggered&&!pendingPosition													
 					&&(pos>0&&ask<watch_up-0.50&&ask<currentEntry+0.25
-						||pos<0&&bid>watch_down+0.50&&bid>currentEntry+0.25)){																//loss stop outside the range
-					reverse(ask,bid,pos,true);																								//outer (outside the range) reversal	
-					breakRange=true;																										//do it once per range - stop all future outer reversals
+						||pos<0&&bid>watch_down+0.50&&bid>currentEntry+0.25)){																//loss stop inside the range
+					log("Detected inside loss");
+					reverse(ask,bid,pos,true);																								//inner (inside the range) reversal	
+					//breakRange=true;																										//do it once per range - stop all future outer reversals
 				}				
-				if(bounceWatch&&pos==0){																										//secondary (inner) watch detector and  pick-up (delayed trade initialization) clause
+				if(bounceTriggered&&pos==0){																									//secondary (inner) watch detector and  pick-up (delayed trade initialization) clause
 						dir=innerDir;
 						trade_active=true;
-						bounceWatch=false;
+						bounceTriggered=false;
 						target=innerTarget;
 						stop=innerStop;
-						log("Pickup bounceWatch dir="+dir+";target="+target+";stop="+stop+";breakRange="+breakRange);
+						log("Pickup bounceTriggered dir="+dir+";target="+target+";stop="+stop+";breakRange="+breakRange);
 				}
 				if(!trade_active&&watch){																									//if broke through the range long
 					if(bid>watch_up+0.25){																									//if broke up 
-						bounceWatch=false;																									//reset secondary watch
+						bounceTriggered=false;																									//reset secondary watch
 						//breakRange=false;
 						if(pos==0){																											//opening a new range 
 							trade_active=true;																								//trigger the trade in the clause below
@@ -402,13 +403,15 @@ namespace NinjaTrader.Strategy
 							stop=(int)((bid-watch_down)*4+2);																				//stop two ticks outside the range
 							drawRange=true;																									//trigger drawing of range lines on the chart on the next 5min bar	
 							log("BREAKOUT UP Target="+target+";Stop="+stop);
+							breakRange=false;																								//range is reset completely as if no history
 						}
 						else if(pos<0){																										//if already short reverse 
-							reverse(ask,bid,pos,false);
+							reverse(ask,bid,pos,false);																						// outer reversal
+							breakRange=true;	
 						}
 					}
 					else if(ask<watch_down-0.25){					
-						bounceWatch=false;
+						bounceTriggered=false;
 						//breakRange=false;
 						if(pos==0){
 							trade_active=true;
@@ -416,9 +419,11 @@ namespace NinjaTrader.Strategy
 							log("BREAKOUT DOWN Target="+target+";Stop="+stop);
 							stop=(int)((watch_up-ask)*4+2);
 							drawRange=true;
+							breakRange=false;
 						}
 						else if(pos>0)
-							reverse(ask,bid,pos,false);
+							reverse(ask,bid,pos,false);																						//outer reversal
+							breakRange=true;	
 					}
 				}
 				
@@ -437,19 +442,19 @@ namespace NinjaTrader.Strategy
 					spreadEnterShortMarket();
 				}
 				else if(pos>0&&sell){
-					log("LOSS EXIT LONG: ask="+ask+";bid="+bid+";watch="+watch+";bounceWatch="+
-						bounceWatch+";breakRange="+breakRange);
+					log("LOSS EXIT LONG: ask="+ask+";bid="+bid+";watch="+watch+";bounceTriggered="+
+						bounceTriggered+";breakRange="+breakRange);
 					spreadExitLongMarket();
 				}
 				else if(pos>0&&(bid>=currentEntry+target/4+adj)){
-					log("WIN EXIT LONG: ask="+ask+";bid="+bid+";watch="+watch+";bounceWatch="+
-						bounceWatch+";breakRange="+breakRange);
+					log("WIN EXIT LONG: ask="+ask+";bid="+bid+";watch="+watch+";bounceTriggered="+
+						bounceTriggered+";breakRange="+breakRange);
 					if(!breakRange&&bid<=watch_up&&bid>watch_median){
 						reverse(ask,bid,pos,true);																						//side effect - sets sell
 					}
 					else{
 						watch=false;																									//no reversal - give up on range
-						bounceWatch=false;
+						bounceTriggered=false;
 					}
 					spreadExitLongMarket();
 				}
@@ -463,12 +468,12 @@ namespace NinjaTrader.Strategy
 				else if(pos>0&&bid<=currentEntry-stop/4-adj&&BarsInProgress==0){
 					log("STOP LONG: ask="+ask+";bid="+bid);
 					watch=false;																										//give up on the range;
-					bounceWatch=false;
+					bounceTriggered=false;
 					spreadExitLongMarket();
 				}
 				else if(pos<0&&sell){
-					log("LOSS EXIT SHORT: ask="+ask+";bid="+bid+";watch="+watch+";bounceWatch="+
-						bounceWatch+";breakRange="+breakRange);
+					log("LOSS EXIT SHORT: ask="+ask+";bid="+bid+";watch="+watch+";bounceTriggered="+
+						bounceTriggered+";breakRange="+breakRange);
 					spreadExitShortMarket();
 				}
 				else if(pos<0&&(ask<=currentEntry-target/4+adj*2)){
@@ -478,7 +483,7 @@ namespace NinjaTrader.Strategy
 					}
 					else{																												// keep range watch on reversals only
 						watch=false;
-						bounceWatch=false;
+						bounceTriggered=false;
 					}
 					spreadExitShortMarket();
 				}
@@ -491,7 +496,7 @@ namespace NinjaTrader.Strategy
 				else if(pos<0&&ask>=currentEntry+stop/4-adj*2&&BarsInProgress==0){
 					log("STOP SHORT: ask="+ask+";bid="+bid);
 					watch=false;
-					bounceWatch=false;
+					bounceTriggered=false;
 					spreadExitShortMarket();
 				}
 			}
@@ -543,8 +548,6 @@ namespace NinjaTrader.Strategy
 			
 			}
 			if(tgt>1){
-				
-				
 				DrawDiamond("dm2"+CurrentBars[1],true,0,watch_down-0.25,Color.BlanchedAlmond);
 				string tx="O-R";
 				if(inner)
@@ -553,15 +556,15 @@ namespace NinjaTrader.Strategy
 				DrawText( "tm2"+CurrentBars[1],true,tx+" "+gainTotal.ToString("c"),0,watch_down-lineNum()*0.25,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 				
 				drawRange=true;
-				bounceWatch=true;
+				bounceTriggered=true;
 				innerTarget=tgt;
 				innerStop=stp;
 				log(tx+" REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down+";tgt="+tgt+";stp="+stp+";breakRange="+breakRange);
 			}
 			else {
 				log("TARGET TOO SMALL TO REVERSE target="+target);
-				bounceWatch=false;
-				breakRange=true;
+				bounceTriggered=false;
+				//breakRange=true;
 			}
 		}
 		/*protected override void OnMarketData(MarketDataEventArgs e){
@@ -599,8 +602,8 @@ namespace NinjaTrader.Strategy
 			if(pendingPosition){
 				if (Positions[1].MarketPosition == MarketPosition.Flat){
 					if(pendingLongExit||pendingShortExit){
-						//PrintWithTimeStamp(name+"EXITED FLAT");
-						log("EXITED FLAT");
+						log("ENTERED LONG: watch="+watch+";bounceTriggered="+
+							bounceTriggered+";breakRange="+breakRange);
 						pendingPosition=false;
 						pendingLongExit=false;
 						pendingShortExit=false;
@@ -609,19 +612,18 @@ namespace NinjaTrader.Strategy
 				}
 				if(pendingLongEntry){
 					if (Positions[1].MarketPosition == MarketPosition.Long){
-						//PrintWithTimeStamp(name+"ENTERED LONG");
-						log("ENTERED LONG");
+						log("ENTERED LONG: watch="+watch+";bounceTriggered="+
+							bounceTriggered+";breakRange="+breakRange);
 						pendingPosition=false;
 						pendingLongEntry=false;
-						//DrawArrowUp(""+CurrentBar,true,0,Highs[0][0]+1,Color.Blue);
 						enteredBar=CurrentBars[0];
 						enteredHeight=Highs[0][0]+1;
 					}
 				}
 				else if(pendingShortEntry){
 					if (Positions[1].MarketPosition == MarketPosition.Short){
-						//PrintWithTimeStamp(name+"ENTERED SHORT");
-						log("ENTERED SHORT");
+						log("ENTERED SHORT: watch="+watch+";bounceTriggered="+
+						bounceTriggered+";breakRange="+breakRange);
 						pendingPosition=false;
 						pendingShortEntry=false;
 						//DrawArrowUp(""+CurrentBar,true,0,Highs[0][0]+1,Color.Yellow);
@@ -669,7 +671,7 @@ namespace NinjaTrader.Strategy
 					if(exitOrder==null){
 						log("RESET WATCH");
 						watch=false;
-						bounceWatch=false;
+						bounceTriggered=false;
 					}
 					//DrawArrowDown(name+CurrentBar,true,0,Highs[0][0]+1,c);
 					//log("Draw CurrentBar="+CurrentBars[0]+";enteredBar="+enteredBar);
