@@ -36,6 +36,7 @@ namespace NinjaTrader.Strategy
 		private int minRangePeriod=3;
 		private double profitTarget=250;
 		private double stopLoss=200;
+		private double k=1.5;
 		
 		private double stop = 0;
 		private double target = 0;
@@ -271,30 +272,33 @@ namespace NinjaTrader.Strategy
 								abdn=sbdn/count;
 								if((abdn<rm&&abup>rm)/*&&touchedTop&&touchedBottom*/){								// range detected
 									enteredRange=(int)(mxh-mnh)*4;
-									//if(enteredRange>4){
+								
 									//verify that the data is good:
 									int lastBid=ToTime(Times[5][0]);
 									int lastAsk=ToTime(Times[4][0]);
 									if((ToTime(Time[0])-lastBid<60)&&ToTime(Time[0])-lastAsk<60){					//gap less than 60 secs
-										//if(pos==0){																	//open position
-											 innerWatch=false;
-											 innerWatchTriggered=false;
-										//}
-										
+										innerWatch=false;
+										innerWatchTriggered=false;
 										watch=true;
 										watch_up=mxh;
 										watch_down=mnh;
 										watch_median=mnh+(mxh-mnh)/2;
-										target=Math.Max((int)((enteredRange/4)/3),2);	// right?
+										target=Math.Max((int)(enteredRange*k),2);	// right?
 									   //target=Math.Max((int)((enteredRange+enteredPeriod)/3),2);	
 										rangeStartBar=CurrentBars[0];
 										enteredPeriod=r;
-										log("START WATCH target="+target+";range="+enteredRange+";rangePeriod="+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";innerWatch="+innerWatch+";innerWatchTriggered="+innerWatchTriggered);
+										log("START WATCH target="+target+";range="+enteredRange+";rangePeriod="
+										+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";innerWatch="
+										+innerWatch+";innerWatchTriggered="+innerWatchTriggered);
 										DrawDiamond("dm"+CurrentBars[1],true,0,watch_up+0.25,Color.Blue);
 										if(gainTotal>0)
-											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,0,watch_up+lineNum()*0.25,20,Color.Green, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
+											0,watch_up+lineNum()*0.25,20,Color.Green, new Font("Ariel",8),
+											StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 										else
-											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,0,watch_up+lineNum()*0.25,20,Color.Red, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
+											0,watch_up+lineNum()*0.25,20,Color.Red, new Font("Ariel",8),
+											StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 										break;
 										//}
 										
@@ -835,7 +839,13 @@ namespace NinjaTrader.Strategy
             get { return minRangePeriod; }
             set { minRangePeriod = value; }
         } 
-		
+		[Description("Target range multiplier: target=range*K")]
+        [GridCategory("Parameters")]
+        public double K
+        {
+            get { return k; }
+            set {  k= value; }
+        } 
         #endregion
     }
 }
