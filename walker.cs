@@ -76,24 +76,29 @@ namespace NinjaTrader.Strategy
 		bool trade_active=false;
 		int total=0;
 		bool vv=true;
+		string orderID;
+		
 		//watch:
 		bool watch=false;
 		double watch_up=0;
 		double watch_down=0;
 		double watch_median=0;
-		bool innerWatch=false;
+		bool bounceWatch=false;																							//goes in effect on reversal to get into oscillating (bouncing) mode within the range
 		int innerDir=0;
 		int innerTarget;
 		int innerStop;
+		bool breakRange=false;																							//does not immediately end watches but will prevent next outer reversal
 		
-		string orderID;
+		
+		//additional range state
 		int rangeStartBar=0;
 		int enteredBar=0;
 		double enteredHeight=0.0;
 		int enteredRange=0;
 		int enteredPeriod=0;
-		bool closedAbove=false;
-		bool innerWatchTriggered=false;
+		
+		
+		
 		private IOrder entryOrder = null;
 		private IOrder exitOrder = null;
 		int pendingBar=0;		
@@ -103,7 +108,7 @@ namespace NinjaTrader.Strategy
 		
 		DateTime firstTime;
 		bool trailStop=false;
-		int closedAboveCounter=0;
+		
 		
 		
 		//Stack<int> spreadAsks=new Stack<int>();
@@ -130,17 +135,18 @@ namespace NinjaTrader.Strategy
 			secondInstrumentSpec="FESX "+contractMonth;
 			
 			Add(firstInstrumentSpec,PeriodType.Tick,1);			//1
-			Add(firstInstrumentSpec,PeriodType.Minute,5,MarketDataType.Ask); // 2 included in live for accurate timestamps
-			Add(firstInstrumentSpec,PeriodType.Minute,5,MarketDataType.Bid); //3
-			Add(firstInstrumentSpec,PeriodType.Tick,1,MarketDataType.Ask); // 4 included in live for accurate timestamps
-			Add(firstInstrumentSpec,PeriodType.Tick,1,MarketDataType.Bid); // 5 included in live for accurate timestamps
+			Add(firstInstrumentSpec,PeriodType.Minute,5,MarketDataType.Ask); 										//2 included in live for accurate timestamps
+			Add(firstInstrumentSpec,PeriodType.Minute,5,MarketDataType.Bid); 										//3
+			Add(firstInstrumentSpec,PeriodType.Tick,1,MarketDataType.Ask); 											//4 included in live for accurate timestamps
+			Add(firstInstrumentSpec,PeriodType.Tick,1,MarketDataType.Bid); 											//5 included in live for accurate timestamps
 		
 			name=strategyName;
 		
 			SetStopLoss(stopLoss);
-			//SetTrailStop(stopLoss);
-			//SetProfitTarget(profitTarget);
-		
+			/*
+			SetTrailStop(stopLoss);
+			SetProfitTarget(profitTarget);
+			*/
 		}
 	
 		/// <summary>
@@ -168,7 +174,7 @@ namespace NinjaTrader.Strategy
 				int iTime=ToTime(Time[0]);	
 				if((iTime>=iLastEntryTime&&iTime<iRestartTime)){													// detect regular trading pause TODO: get trading hours from the exchange to support short days
 					watch=false;
-					innerWatch=false;
+					bounceWatch=false;
 					return;
 				}
 				if(CurrentBar==currentBar)
@@ -192,21 +198,10 @@ namespace NinjaTrader.Strategy
 				}
 				#endregion
 				int pos= dirOfPosition();
-				if(watch&&(pos>0&&Closes[5][0]>=watch_up+0.25||pos<0&&Closes[4][0]<=watch_down+0.25)){
-					if(++closedAboveCounter>86){
-						watch=false;
-						innerWatch=false;
-						closedAboveCounter=0;
-						log("CLOSED ABOVE CANCEL WATCH ask="+Closes[2][0]+";bid="+Closes[3][0]);
-					}
-				}	
-				else if(watch&&(pos>0&&Closes[5][0]<watch_up||pos<0&&Closes[4][0]>watch_down)){
-					closedAboveCounter=0;	
-				}
 				
 				if(CurrentBars[0]>rangePeriod&&!pendingPosition&&!watch){
 					//range detection
-					closedAbove=false;
+					
 					trade_active=false;
 					int r=rangePeriod+1;
 					while(r>minRangePeriod){
@@ -277,9 +272,10 @@ namespace NinjaTrader.Strategy
 									int lastBid=ToTime(Times[5][0]);
 									int lastAsk=ToTime(Times[4][0]);
 									if((ToTime(Time[0])-lastBid<60)&&ToTime(Time[0])-lastAsk<60){					//gap less than 60 secs
-										innerWatch=false;
-										innerWatchTriggered=false;
-										watch=true;
+									//Starting a new range:
+										bounceWatch=false;															//reset secondary (bounce) watch
+										breakRange=false;															//reset hard break of the range indicator
+										watch=true;																	//set watch indicator
 										watch_up=mxh;
 										watch_down=mnh;
 										watch_median=mnh+(mxh-mnh)/2;
@@ -288,8 +284,8 @@ namespace NinjaTrader.Strategy
 										rangeStartBar=CurrentBars[0];
 										enteredPeriod=r;
 										log("START WATCH target="+target+";range="+enteredRange+";rangePeriod="
-										+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";innerWatch="
-										+innerWatch+";innerWatchTriggered="+innerWatchTriggered);
+										+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";bounceWatch="
+										+bounceWatch+";breakRange="+breakRange);
 										DrawDiamond("dm"+CurrentBars[1],true,0,watch_up+0.25,Color.Blue);
 										if(gainTotal>0)
 											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
@@ -312,7 +308,7 @@ namespace NinjaTrader.Strategy
 				}
 			
 				//if(watch&&!trade_active)
-				//	log("$$$ WATCH UP="+watch_up+";DOWN="+watch_down+";innerWatch="+innerWatch+";innerWatchTriggered="+innerWatchTriggered);
+				//	log("$$$ WATCH UP="+watch_up+";DOWN="+watch_down+";bounceWatch="+bounceWatch+";breakRange="+breakRange);
 				if(pos>0){
 					if(Closes[5][0]>currentEntry&&Closes[5][0]>Closes[5][1]){
 						adj+=0.25;
@@ -382,25 +378,24 @@ namespace NinjaTrader.Strategy
 					return;
 				}
 			
-				if(!innerWatchTriggered&&!innerWatch/*&&!closedAbove*/&&!pendingPosition													
-					&&(pos>0&&ask<watch_up-0.25&&ask<currentEntry+0.25
-						||pos<0&&bid>watch_down+0.25&&bid>currentEntry+0.25)){																//loss stop outside the range
+				if(!breakRange&&!bounceWatch&&!pendingPosition													
+					&&(pos>0&&ask<watch_up-0.50&&ask<currentEntry+0.25
+						||pos<0&&bid>watch_down+0.50&&bid>currentEntry+0.25)){																//loss stop outside the range
 					reverse(ask,bid,pos,true);																								//outer (outside the range) reversal	
-					//innerWatch=true;																									
-					innerWatchTriggered=true;																								//do it once per range
+					breakRange=true;																										//do it once per range - stop all future outer reversals
 				}				
-				if(innerWatch&&pos==0){																										//secondary (inner) watch detector and  pick-up (delayed trade initialization) clause
+				if(bounceWatch&&pos==0){																										//secondary (inner) watch detector and  pick-up (delayed trade initialization) clause
 						dir=innerDir;
 						trade_active=true;
-						innerWatch=false;
+						bounceWatch=false;
 						target=innerTarget;
 						stop=innerStop;
-						log("Pickup innerWatch dir="+dir+";target="+target+";stop="+stop+";innerWatchTriggered="+innerWatchTriggered);
+						log("Pickup bounceWatch dir="+dir+";target="+target+";stop="+stop+";breakRange="+breakRange);
 				}
 				if(!trade_active&&watch){																									//if broke through the range long
 					if(bid>watch_up+0.25){																									//if broke up 
-						innerWatch=false;																									//reset secondary watch
-						//innerWatchTriggered=false;
+						bounceWatch=false;																									//reset secondary watch
+						//breakRange=false;
 						if(pos==0){																											//opening a new range 
 							trade_active=true;																								//trigger the trade in the clause below
 							dir=1;																											//long
@@ -413,8 +408,8 @@ namespace NinjaTrader.Strategy
 						}
 					}
 					else if(ask<watch_down-0.25){					
-						innerWatch=false;
-						//innerWatchTriggered=false;
+						bounceWatch=false;
+						//breakRange=false;
 						if(pos==0){
 							trade_active=true;
 							dir=-1;
@@ -441,51 +436,67 @@ namespace NinjaTrader.Strategy
 					log("ENTER SHORT: ask="+ask+";bid="+bid);
 					spreadEnterShortMarket();
 				}
-				else if(pos>0&&(bid>=currentEntry+target/4+adj||sell)){
-					log("EXIT LONG: ask="+ask+";bid="+bid);
-					if(!innerWatchTriggered&&bid<=watch_up&&bid>watch_median){
-						reverse(ask,bid,pos,true);
+				else if(pos>0&&sell){
+					log("LOSS EXIT LONG: ask="+ask+";bid="+bid+";watch="+watch+";bounceWatch="+
+						bounceWatch+";breakRange="+breakRange);
+					spreadExitLongMarket();
+				}
+				else if(pos>0&&(bid>=currentEntry+target/4+adj)){
+					log("WIN EXIT LONG: ask="+ask+";bid="+bid+";watch="+watch+";bounceWatch="+
+						bounceWatch+";breakRange="+breakRange);
+					if(!breakRange&&bid<=watch_up&&bid>watch_median){
+						reverse(ask,bid,pos,true);																						//side effect - sets sell
 					}
-					if(!sell||innerWatchTriggered){
-						watch=false;
-						innerWatch=false;
+					else{
+						watch=false;																									//no reversal - give up on range
+						bounceWatch=false;
 					}
 					spreadExitLongMarket();
 				}
+				/*
 				else if(!trailStop&&pos>0&&(bid>=currentEntry+3/4)){
 					log("SET TRAIL STOP: ask="+ask+";bid="+bid);
 					trailStop=true;
-					//SetTrailStop(55);
-				}
+					SetTrailStop(55);																									//seemed like a good idea at the time
+					
+				}*/
 				else if(pos>0&&bid<=currentEntry-stop/4-adj&&BarsInProgress==0){
 					log("STOP LONG: ask="+ask+";bid="+bid);
-					watch=false;
+					watch=false;																										//give up on the range;
+					bounceWatch=false;
 					spreadExitLongMarket();
 				}
-				else if(pos<0&&(ask<=currentEntry-target/4+adj*2||sell)/*&&BarsInProgress==0*/){
-					log("EXIT SHORT: ask="+ask+";bid="+bid);
-					if(!innerWatchTriggered&&ask>=watch_down&&ask<watch_median){
+				else if(pos<0&&sell){
+					log("LOSS EXIT SHORT: ask="+ask+";bid="+bid+";watch="+watch+";bounceWatch="+
+						bounceWatch+";breakRange="+breakRange);
+					spreadExitShortMarket();
+				}
+				else if(pos<0&&(ask<=currentEntry-target/4+adj*2)){
+					log("WIN EXIT SHORT: ask="+ask+";bid="+bid);
+					if(!breakRange&&ask>=watch_down&&ask<watch_median){
 						reverse(ask,bid,pos,true);
 					}
-					if(!sell||innerWatchTriggered){												// keep watch on reversals
+					else{																												// keep range watch on reversals only
 						watch=false;
-						innerWatch=false;
+						bounceWatch=false;
 					}
 					spreadExitShortMarket();
 				}
+				/*
 				else if(!trailStop&&pos<0&&(ask<=currentEntry-3/4)){
 					log("SET TRAIL STOP: ask="+ask+";bid="+bid);
 					//SetTrailStop(55);
 					trailStop=true;
-				}
+				}*/
 				else if(pos<0&&ask>=currentEntry+stop/4-adj*2&&BarsInProgress==0){
 					log("STOP SHORT: ask="+ask+";bid="+bid);
 					watch=false;
+					bounceWatch=false;
 					spreadExitShortMarket();
 				}
 			}
-			else {
-				if(CurrentBar>pendingBar+1&&BarsInProgress==0){
+			else {	
+				if(CurrentBar>pendingBar+1&&BarsInProgress==0){																		//taking care of stuck orders
 					if(pendingLongEntry||pendingShortEntry){
 						if(entryOrder!=null){
 							CancelOrder(entryOrder);
@@ -510,6 +521,9 @@ namespace NinjaTrader.Strategy
 		//
 		
 		protected void reverse(double ask, double bid,int pos,bool inner){
+			
+			sell=true;
+			
 			int tgt=enteredRange+3;//+2;;
 			int stp=(int)stop;
 
@@ -529,7 +543,7 @@ namespace NinjaTrader.Strategy
 			
 			}
 			if(tgt>1){
-				sell=true;
+				
 				
 				DrawDiamond("dm2"+CurrentBars[1],true,0,watch_down-0.25,Color.BlanchedAlmond);
 				string tx="O-R";
@@ -539,15 +553,15 @@ namespace NinjaTrader.Strategy
 				DrawText( "tm2"+CurrentBars[1],true,tx+" "+gainTotal.ToString("c"),0,watch_down-lineNum()*0.25,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 				
 				drawRange=true;
-				innerWatch=true;
+				bounceWatch=true;
 				innerTarget=tgt;
 				innerStop=stp;
-				log(tx+" REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down+";tgt="+tgt+";stp="+stp+";innerWatchTriggered="+innerWatchTriggered);
+				log(tx+" REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down+";tgt="+tgt+";stp="+stp+";breakRange="+breakRange);
 			}
 			else {
 				log("TARGET TOO SMALL TO REVERSE target="+target);
-				innerWatch=false;
-				innerWatchTriggered=true;
+				bounceWatch=false;
+				breakRange=true;
 			}
 		}
 		/*protected override void OnMarketData(MarketDataEventArgs e){
@@ -655,7 +669,7 @@ namespace NinjaTrader.Strategy
 					if(exitOrder==null){
 						log("RESET WATCH");
 						watch=false;
-						innerWatch=false;
+						bounceWatch=false;
 					}
 					//DrawArrowDown(name+CurrentBar,true,0,Highs[0][0]+1,c);
 					//log("Draw CurrentBar="+CurrentBars[0]+";enteredBar="+enteredBar);
