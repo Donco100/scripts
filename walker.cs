@@ -88,7 +88,7 @@ namespace NinjaTrader.Strategy
 		int innerTarget;
 		int innerStop;
 		bool breakRange=false;																							//does not immediately end watches but will prevent next outer reversal
-		
+		bool outerTrade=false;
 		
 		//additional range state
 		int rangeStartBar=0;
@@ -378,15 +378,17 @@ namespace NinjaTrader.Strategy
 					return;
 				}
 			
-				if(!breakRange&&!bounceTriggered&&!pendingPosition													
+				if(outerTrade&&!pendingPosition													
 					&&(pos>0&&ask<watch_up-0.50&&ask<currentEntry+0.25
 						||pos<0&&bid>watch_down+0.50&&bid>currentEntry+0.25)){																//loss stop inside the range
 					log("Detected inside loss");
 					reverse(ask,bid,pos,true);																								//inner (inside the range) reversal	
+					outerTrade=false;
 					//breakRange=true;																										//do it once per range - stop all future outer reversals
 				}				
 				if(bounceTriggered&&pos==0){																									//secondary (inner) watch detector and  pick-up (delayed trade initialization) clause
 						dir=innerDir;
+						outerTrade=false;
 						trade_active=true;
 						bounceTriggered=false;
 						target=innerTarget;
@@ -400,13 +402,17 @@ namespace NinjaTrader.Strategy
 						if(pos==0){																											//opening a new range 
 							trade_active=true;																								//trigger the trade in the clause below
 							dir=1;																											//long
+							outerTrade=true;
 							stop=(int)((bid-watch_down)*4+2);																				//stop two ticks outside the range
 							drawRange=true;																									//trigger drawing of range lines on the chart on the next 5min bar	
 							log("BREAKOUT UP Target="+target+";Stop="+stop);
-							breakRange=false;																								//range is reset completely as if no history
+							breakRange=false;	
+							//range is reset completely as if no history
 						}
 						else if(pos<0){																										//if already short reverse 
+							outerTrade=true;
 							reverse(ask,bid,pos,false);																						// outer reversal
+							log("SHORT OUTER REVERSAL breakRange=true;");
 							breakRange=true;	
 						}
 					}
@@ -416,14 +422,19 @@ namespace NinjaTrader.Strategy
 						if(pos==0){
 							trade_active=true;
 							dir=-1;
+							outerTrade=true;
 							log("BREAKOUT DOWN Target="+target+";Stop="+stop);
 							stop=(int)((watch_up-ask)*4+2);
 							drawRange=true;
 							breakRange=false;
 						}
-						else if(pos>0)
-							reverse(ask,bid,pos,false);																						//outer reversal
+						else if(pos>0){
+						    outerTrade=true;
+							reverse(ask,bid,pos,false);	
+																					//outer reversal
+							log("LONG OUTER REVERSAL breakRange=true;"); 
 							breakRange=true;	
+						}
 					}
 				}
 				
@@ -602,7 +613,7 @@ namespace NinjaTrader.Strategy
 			if(pendingPosition){
 				if (Positions[1].MarketPosition == MarketPosition.Flat){
 					if(pendingLongExit||pendingShortExit){
-						log("ENTERED LONG: watch="+watch+";bounceTriggered="+
+						log("EXITED FLAT: watch="+watch+";bounceTriggered="+
 							bounceTriggered+";breakRange="+breakRange);
 						pendingPosition=false;
 						pendingLongExit=false;
