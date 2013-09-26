@@ -391,12 +391,12 @@ namespace NinjaTrader.Strategy
 						innerWatch=false;
 						target=innerTarget;
 						stop=innerStop;
-						log("Pickup innerWatch dir="+dir+";target="+target+";stop="+stop);
+						log("Pickup innerWatch dir="+dir+";target="+target+";stop="+stop+";innerWatchTriggered="+innerWatchTriggered);
 				}
 				if(!trade_active&&watch){																									//if broke through the range long
 					if(bid>watch_up+0.25){																									//if broke up 
 						innerWatch=false;																									//reset secondary watch
-						innerWatchTriggered=false;
+						//innerWatchTriggered=false;
 						if(pos==0){																											//opening a new range 
 							trade_active=true;																								//trigger the trade in the clause below
 							dir=1;																											//long
@@ -410,7 +410,7 @@ namespace NinjaTrader.Strategy
 					}
 					else if(ask<watch_down-0.25){					
 						innerWatch=false;
-						innerWatchTriggered=false;
+						//innerWatchTriggered=false;
 						if(pos==0){
 							trade_active=true;
 							dir=-1;
@@ -439,11 +439,13 @@ namespace NinjaTrader.Strategy
 				}
 				else if(pos>0&&(bid>=currentEntry+target/4+adj||sell)){
 					log("EXIT LONG: ask="+ask+";bid="+bid);
-					if(bid<=watch_up&&bid>watch_median){
+					if(!innerWatchTriggered&&bid<=watch_up&&bid>watch_median){
 						reverse(ask,bid,pos,true);
 					}
-					if(!sell)
+					if(!sell||innerWatchTriggered){
 						watch=false;
+						innerWatch=false;
+					}
 					spreadExitLongMarket();
 				}
 				else if(!trailStop&&pos>0&&(bid>=currentEntry+3/4)){
@@ -458,11 +460,13 @@ namespace NinjaTrader.Strategy
 				}
 				else if(pos<0&&(ask<=currentEntry-target/4+adj*2||sell)/*&&BarsInProgress==0*/){
 					log("EXIT SHORT: ask="+ask+";bid="+bid);
-					if(ask>=watch_down&&ask<watch_median){
+					if(!innerWatchTriggered&&ask>=watch_down&&ask<watch_median){
 						reverse(ask,bid,pos,true);
 					}
-					if(!sell)			// keep watch on reversals
+					if(!sell||innerWatchTriggered){												// keep watch on reversals
 						watch=false;
+						innerWatch=false;
+					}
 					spreadExitShortMarket();
 				}
 				else if(!trailStop&&pos<0&&(ask<=currentEntry-3/4)){
@@ -524,16 +528,17 @@ namespace NinjaTrader.Strategy
 				sell=true;
 				
 				DrawDiamond("dm2"+CurrentBars[1],true,0,watch_down-0.25,Color.BlanchedAlmond);
+				string tx="O-R";
 				if(inner)
-					DrawText( "tm2"+CurrentBars[1],true,"I-R "+gainTotal.ToString("c"),0,watch_down-lineNum()*0.25,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-				else
-					DrawText( "tm2"+CurrentBars[1],true,"O-R "+gainTotal.ToString("c"),0,watch_down-lineNum()*0.25,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+					tx="I-R";
+					
+				DrawText( "tm2"+CurrentBars[1],true,tx+" "+gainTotal.ToString("c"),0,watch_down-lineNum()*0.25,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 				
 				drawRange=true;
 				innerWatch=true;
 				innerTarget=tgt;
 				innerStop=stp;
-				log("REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down+";tgt="+tgt+";stp="+stp);
+				log(tx+" REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down+";tgt="+tgt+";stp="+stp+";innerWatchTriggered="+innerWatchTriggered);
 			}
 			else {
 				log("TARGET TOO SMALL TO REVERSE target="+target);
