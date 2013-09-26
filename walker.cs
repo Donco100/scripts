@@ -370,14 +370,14 @@ namespace NinjaTrader.Strategy
 					return;
 				}
 			
-				if(!innerWatchTriggered&&!innerWatch/*&&!closedAbove*/&&!pendingPosition
+				if(!innerWatchTriggered&&!innerWatch/*&&!closedAbove*/&&!pendingPosition													
 					&&(pos>0&&ask<watch_up-0.25&&ask<currentEntry+0.50
-						||pos<0&&bid>watch_down+0.25&&bid>currentEntry+0.50)){
-					reverse(ask,bid,pos,true);
-					innerWatch=true;
-					innerWatchTriggered=true;
+						||pos<0&&bid>watch_down+0.25&&bid>currentEntry+0.50)){																//loss stop outside the range
+					reverse(ask,bid,pos,true);																								//outer (outside the range) reversal	
+					//innerWatch=true;																									
+					innerWatchTriggered=true;																								//do it once per range
 				}				
-				if(innerWatch&&pos==0){																										//secondary (inner) watch detector and  pick-up (trade initialization) clause
+				if(innerWatch&&pos==0){																										//secondary (inner) watch detector and  pick-up (delayed trade initialization) clause
 						dir=innerDir;
 						trade_active=true;
 						innerWatch=false;
@@ -385,7 +385,7 @@ namespace NinjaTrader.Strategy
 						stop=innerStop;
 						log("Pickup innerWatch dir="+dir+";target="+target+";stop="+stop);
 				}
-				if(!trade_active&&watch){																									//if broke through the range
+				if(!trade_active&&watch){																									//if broke through the range long
 					if(bid>watch_up+0.5){																									//if broke up 
 						innerWatch=false;																									//reset secondary watch
 						innerWatchTriggered=false;
@@ -400,17 +400,13 @@ namespace NinjaTrader.Strategy
 							reverse(ask,bid,pos,false);
 						}
 					}
-					else if(ask<watch_down-0.5/*-breakSpread/4*/){
+					else if(ask<watch_down-0.5){
 						innerWatch=false;
 						innerWatchTriggered=false;
 						if(pos==0){
 							trade_active=true;
-							//watch=false;
-							//watch_down=0;
 							dir=-1;
 							log("BREAKOUT DOWN Target="+target+";Stop="+stop);
-							
-							//DrawDiamond("dm"+CurrentBar,true,1,Highs[0][0]+1,Color.Bisque);
 							stop=(int)((watch_up-ask)*4+2);
 							drawRange=true;
 						}
