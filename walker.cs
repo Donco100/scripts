@@ -161,7 +161,7 @@ namespace NinjaTrader.Strategy
 			
 			
 			
-			if(BarsInProgress==0){												// only on 5 minute bars
+			if(BarsInProgress==0){																					// only on 5 minute bars
 				int iTime=ToTime(Time[0]);	
 				//if(iTime>=iLastEntryTime||iTime<iStartTime){
 				if((iTime>=iLastEntryTime&&iTime<iRestartTime/*/||iTime<iStartTime*/)){
@@ -174,9 +174,11 @@ namespace NinjaTrader.Strategy
 				currentBar=CurrentBar;
 				if(drawRange){
 					//log("DRAW LINE rangeStartBar="+rangeStartBar+";CurrentBar="+CurrentBars[0]);
-					DrawLine("uwline"+CurrentBars[1],true,CurrentBars[0]-rangeStartBar+enteredPeriod,watch_up,1,watch_up,Color.DarkOliveGreen,DashStyle.Solid,1);
-					DrawLine("dwline"+CurrentBars[1],true,CurrentBars[0]-rangeStartBar+enteredPeriod,watch_down,1,watch_down,Color.DarkBlue,DashStyle.Solid,1);
-					DrawText( "t"+CurrentBars[1],true,"R:"+enteredRange+"  Tgt:"+target+ "  Stop:"+stop+"  Prd:"+enteredPeriod,CurrentBars[0]-rangeStartBar+enteredPeriod,watch_up+0.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+					int startingBar=CurrentBars[0]-rangeStartBar+enteredPeriod;
+					DrawLine("uwline"+rangeStartBar,true,startingBar,watch_up,1,watch_up,Color.DarkOliveGreen,DashStyle.Solid,1);
+					DrawLine("dwline"+rangeStartBar,true,startingBar,watch_down,1,watch_down,Color.DarkBlue,DashStyle.Solid,1);
+					DrawLine("mline"+ rangeStartBar,true,startingBar,watch_median,1,watch_median,Color.DarkGray,DashStyle.Dash,1);
+					DrawText( "t"+rangeStartBar,true,"R:"+enteredRange+"  Tgt:"+target+ "  Stop:"+stop+"  Prd:"+enteredPeriod,CurrentBars[0]-rangeStartBar+enteredPeriod,watch_up+0.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 					drawRange=false;	
 						
 				}
@@ -275,7 +277,7 @@ namespace NinjaTrader.Strategy
 										watch_up=mxh;
 										watch_down=mnh;
 										watch_median=mnh+(mxh-mnh)/2;
-										target=Math.Max((int)(enteredRange/4)/4,2);	// right?
+										target=Math.Max((int)(enteredRange/4)/3,2);	// right?
 									   //target=Math.Max((int)((enteredRange+enteredPeriod)/3),2);	
 										rangeStartBar=CurrentBars[0];
 										enteredPeriod=r;
@@ -347,17 +349,17 @@ namespace NinjaTrader.Strategy
 						
 					if(iTime>=iExitOnCloseTime&&iTime<iRestartTime){
 						if(pos>0){
-							PrintWithTimeStamp(name+" -->>EXIT ON CLOSE LONG: ask="+ask+";bid="+bid);
+							
 							double gain=(bid-currentEntry);
 							double net_gain=gain*4*12.5-4;
 							gainTotal+=net_gain;
-							log(" -->>EXIT ON CLOSE LONG: ask="+ask+";bid="+bid+";gain="+gain+";net="+net_gain.ToString("C")+";total="+gainTotal.ToString("C"));
+							log(" -->>EXIT ON CLOSE LONG: ask="+ask+";bid="+bid+";gain="+gain+";net="+
+								net_gain.ToString("C")+";total="+gainTotal.ToString("C"));
 							spreadExitLongMarket();
 						}else {
 							double gain=(currentEntry-ask);
 							double net_gain=gain*4*12.5-4;
 							gainTotal+=net_gain;
-							PrintWithTimeStamp(name+ " -->>EXIT ON CLOSE SHORT: ask="+ask+";bid="+bid+";gain="+gain+";net="+net_gain.ToString("C")+";total="+gainTotal.ToString("C"));
 							log( " -->>EXIT ON CLOSE SHORT: sask="+ask+";bid="+bid);
 							spreadExitShortMarket();
 						}
@@ -365,11 +367,12 @@ namespace NinjaTrader.Strategy
 					}
 				}
 				if(pos==0&&(iTime>=iLastEntryTime&&iTime<iRestartTime/*/||iTime<iStartTime*/)){
-					//watch=0;99
 					return;
 				}
 			
-				if(!innerWatchTriggered&&!innerWatch/*&&!closedAbove*/&&!pendingPosition&&(pos>0&&ask<watch_up-0.25&&ask<currentEntry+0.50||pos<0&&bid>watch_down+0.25&&bid>currentEntry+0.50)){
+				if(!innerWatchTriggered&&!innerWatch/*&&!closedAbove*/&&!pendingPosition
+					&&(pos>0&&ask<watch_up-0.25&&ask<currentEntry+0.50
+						||pos<0&&bid>watch_down+0.25&&bid>currentEntry+0.50)){
 					reverse(ask,bid,pos,true);
 					innerWatch=true;
 					innerWatchTriggered=true;
@@ -419,25 +422,18 @@ namespace NinjaTrader.Strategy
 					}
 				}
 				
-				if(trade_active&&pos==0&&dir>0/*&&BarsInProgress==0*/){
+				if(trade_active&&pos==0&&dir>0){
 					adj=0;
-					
 					sell=false;
 					trailStop=false;
-					PrintWithTimeStamp(name+"ENTER LONG: ask="+ask+";bid="+bid);
 					log("ENTER LONG: ask="+ask+";bid="+bid);
-					//currentEntry=ask;
-				
 					spreadEnterLongMarket();
 				}
-				else if(trade_active&&pos==0 &&(dir<0/*&&BarsInProgress==0*/)){
+				else if(trade_active&&pos==0 &&(dir<0)){
 					adj=0;
 					sell=false;
 					trailStop=false;
-					PrintWithTimeStamp(name+"ENTER SHORT: ask="+ask+";bid="+bid);
 					log("ENTER SHORT: ask="+ask+";bid="+bid);
-					//currentEntry=bid;
-					
 					spreadEnterShortMarket();
 				}
 				else if(pos>0&&(bid>=currentEntry+target/4+adj||sell)){
@@ -499,28 +495,28 @@ namespace NinjaTrader.Strategy
 		}
 		protected void reverse(double ask, double bid,int pos,bool inner){
 					sell=true;
-					log(" SELL TRIGGER ON NO CLOSE REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down);
+					log("REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down);
 					DrawDiamond("dm2"+CurrentBars[1],true,0,watch_down-0.25,Color.BlanchedAlmond);
 					if(inner)
-					DrawText( "tm2"+CurrentBars[1],true,"I-R",0,watch_down-2.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+					DrawText( "tm2"+CurrentBars[1],true,"I-R",0,watch_down-1.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 					else
-					DrawText( "tm2"+CurrentBars[1],true,"O-R",0,watch_down-2.50,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+					DrawText( "tm2"+CurrentBars[1],true,"O-R",0,watch_down-2.25,20,Color.Black, new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 					
 					int tgt=enteredRange+3;//+2;;
 					//watch=false;
 					if(pos>0){
 						innerDir=-1;
-						//if (inner)
+						if (inner)
 							tgt=(int)(bid-watch_down)*4-1;//enteredRange/2;
-					
 					}
 					else{
 						innerDir=1;
-						//if (inner)
+						if (inner)
 							tgt=(int)(watch_up-ask)*4-1;//enteredRange/2;
 					
 					}
-					
+					drawRange=true;
+					innerWatch=true;
 					innerTarget=tgt;
 					innerStop=12;
 		}
@@ -559,7 +555,7 @@ namespace NinjaTrader.Strategy
 			if(pendingPosition){
 				if (Positions[1].MarketPosition == MarketPosition.Flat){
 					if(pendingLongExit||pendingShortExit){
-						PrintWithTimeStamp(name+"EXITED FLAT");
+						//PrintWithTimeStamp(name+"EXITED FLAT");
 						log("EXITED FLAT");
 						pendingPosition=false;
 						pendingLongExit=false;
@@ -569,7 +565,7 @@ namespace NinjaTrader.Strategy
 				}
 				if(pendingLongEntry){
 					if (Positions[1].MarketPosition == MarketPosition.Long){
-						PrintWithTimeStamp(name+"ENTERED LONG");
+						//PrintWithTimeStamp(name+"ENTERED LONG");
 						log("ENTERED LONG");
 						pendingPosition=false;
 						pendingLongEntry=false;
@@ -580,7 +576,7 @@ namespace NinjaTrader.Strategy
 				}
 				else if(pendingShortEntry){
 					if (Positions[1].MarketPosition == MarketPosition.Short){
-						PrintWithTimeStamp(name+"ENTERED SHORT");
+						//PrintWithTimeStamp(name+"ENTERED SHORT");
 						log("ENTERED SHORT");
 						pendingPosition=false;
 						pendingShortEntry=false;
