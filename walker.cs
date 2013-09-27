@@ -22,7 +22,7 @@ namespace NinjaTrader.Strategy
     /// <summary>
     /// Manual range trading
     /// </summary>
-    [Description("Dumb Ranger")]
+    [Description("Texas Ranger")]
     public class Walker : Strategy
     {
         #region Variables
@@ -31,23 +31,26 @@ namespace NinjaTrader.Strategy
 		private bool tradingLive=false; //Default setting for TradingLive
 		private string contractMonth="12-13"; //Default setting for ContractMonth
 		private string strategyName="Walker";  //Default setting for Name
-		private int range=10;
-		private int minRange=4;
+		private double range=10;
+		private double minRange=4;
 		private int rangePeriod=18;
 		private int minRangePeriod=3;
 		private double profitTarget=250;
 		private double stopLoss=200;
 		private double k=1.5;
 		
+		//trade params
 		private double stop = 0;
 		private double target = 0;
 		int dir=0;
-		int c=0;
+		
 		private string name=""; 
 		
-		double gainTotal=0;																	
 		
-		private bool pendingPosition=false;
+		double gainTotal=0;																									//gain accumulator
+	
+		// position management
+		private bool pendingPosition=false;																					//
 		private bool pendingLongEntry=false;
 		private bool pendingShortEntry=false;
 		private bool pendingLongExit=false;
@@ -90,7 +93,7 @@ namespace NinjaTrader.Strategy
 		int rangeStartBar=0;
 		int enteredBar=0;
 		double enteredHeight=0.0;
-		int enteredRange=0;
+		double enteredRange=0;
 		int enteredPeriod=0;
 		
 		
@@ -205,12 +208,12 @@ namespace NinjaTrader.Strategy
 						r--;
 						double mx=Math.Max(MAX(Closes[3],r)[0],MAX(Opens[3],r)[0]);									// high-end of the body (narrow) range
 						double mn=Math.Min(MIN(Closes[2],r)[0],MIN(Opens[2],r)[0]); 								// low-end of the body range
-						double mxh=MAX(Highs[3],r)[0];            													// high end of the full (wide) range 
-						double mnh=MIN(Lows[2],r)[0];																// low-end of the wide range
+						double mxh=MAX(Highs[3],r)[3];            													// high end of the full (wide) range 
+						double mnh=MIN(Lows[2],r)[2];																// low-end of the wide range
 						
 						double wr=mxh-mnh;																			// wide range, high to lows
 						double nr=mx-mn;										    								// narrow range, for bodies only	
-						if(nr<=range/4&&nr>=minRange/4){								   									// max range					
+						if(wr<=range/4&&wr>=minRange/4){								   									// max range					
 										
 							double rm=mnh+wr/2;																		// range median
 							
@@ -224,8 +227,8 @@ namespace NinjaTrader.Strategy
 							bool touchedBottom=false;																// at least one bar in this half touched bottom
 												
 							for(int i=0;i<hrp;i++){
-								double top=Math.Max(Opens[3][i],Closes[3][i]);
-								double btm=Math.Min(Opens[2][i],Closes[2][i]);
+								double top=Math.Max(Opens[2][i],Closes[2][i]);
+								double btm=Math.Min(Opens[3][i],Closes[3][i]);
 								sbup+=top;       																	// high-end of the candle body
 								sbdn+=btm;       																	// low-end of the candle body
 								if(top>=mx&&btm<=rm)
@@ -263,8 +266,8 @@ namespace NinjaTrader.Strategy
 								abup=sbup/count;
 								abdn=sbdn/count;
 								if((abdn<rm&&abup>rm)/*&&touchedTop&&touchedBottom*/){								// range detected
-									enteredRange=(int)nr*4;
-									if(enteredRange<minRange||enteredRange>range)
+									enteredRange=(int)wr*4;
+									if(nr*4<minRange||enteredRange>range||nr>wr)
 										continue;
 									//verify that the data is good:
 									int lastBid=ToTime(Times[5][0]);
@@ -277,14 +280,17 @@ namespace NinjaTrader.Strategy
 										watch_up=mxh;
 										watch_down=mnh;
 										watch_median=mnh+(mxh-mnh)/2;
-										target=(int)((10/enteredRange)*((CurrentBars[0]-rangeStartBar+enteredPeriod)/2));//+2;;
+										double tgt=(1.0/((double)enteredRange));//+2;;
+										target=(int)(tgt*tgt*4*enteredPeriod*(wr-nr)*2+hrp/2);
+										log("proposed target="+target+";tgt="+tgt);
 										//target=Math.Max((int)(enteredRange*k),2);	// right?
 									   //target=Math.Max((int)((enteredRange+enteredPeriod)/3),2);	
+										target=Math.Max(target,2);
 										rangeStartBar=CurrentBars[0];
 										enteredPeriod=r;
 										log("START WATCH target="+target+";range="+enteredRange+";rangePeriod="
-										+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="
-										+bounceTriggered+";breakRange="+breakRange);
+											+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="
+											+bounceTriggered+";breakRange="+breakRange);
 										DrawDiamond("dm"+CurrentBars[1],true,0,watch_up+0.25,Color.Blue);
 										if(gainTotal>0){
 											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
@@ -306,7 +312,7 @@ namespace NinjaTrader.Strategy
 				//if(watch&&!trade_active)
 				//	log("$$$ WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="+bounceTriggered+";breakRange="+breakRange);
 			}
-			if(BarsInProgress==4||BarsInProgress==5){
+			if(BarsInProgress==4||BarsInProgress==5||BarsInProgress==0){
 				if(Historical&&!tradingLive){ // when backtesting to the trades
 					processTick(Closes[4][0],Closes[5][0]);
 				}
@@ -332,18 +338,11 @@ namespace NinjaTrader.Strategy
 						
 					if(iTime>=iExitOnCloseTime&&iTime<iRestartTime){
 						if(pos>0){
-							
-							double gain=(bid-currentEntry);
-							double net_gain=gain*4*12.5-4;
-							gainTotal+=net_gain;
-							log(" -->>EXIT ON CLOSE LONG: ask="+ask+";bid="+bid+";gain="+gain+";net="+
-								net_gain.ToString("C")+";total="+gainTotal.ToString("C"));
+							//gainTotal+=net_gain;
+							log(" -->>EXIT ON CLOSE LONG");
 							spreadExitLongMarket();
 						}else {
-							double gain=(currentEntry-ask);
-							double net_gain=gain*4*12.5-4;
-							gainTotal+=net_gain;
-							log( " -->>EXIT ON CLOSE SHORT: sask="+ask+";bid="+bid);
+							log( " -->>EXIT ON CLOSE SHORT: ask="+ask+";bid="+bid);
 							spreadExitShortMarket();
 						}
 						return;
@@ -354,9 +353,9 @@ namespace NinjaTrader.Strategy
 				}
 			
 				if(outerTrade&&!pendingPosition													
-					&&(pos>0&&ask<watch_up-0.50&&ask<currentEntry+0.25
-						||pos<0&&bid>watch_down+0.50&&bid>currentEntry+0.25)){																//loss stop inside the range
-					log("Detected inside loss");
+					&&(pos>0&&ask<watch_up-0.50&&ask<currentEntry-0.5
+						||pos<0&&bid>watch_down+0.50&&bid>currentEntry+0.5)){																//loss stop inside the range
+					log("Detected inside loss watch_up="+watch_up+";watch_down="+watch_down+";ask="+ask+";bid="+bid+";entry="+currentEntry);
 					reverse(ask,bid,pos,true);																								//inner (inside the range) reversal	
 					outerTrade=false;
 					//breakRange=true;																										//do it once per range - stop all future outer reversals
@@ -371,7 +370,8 @@ namespace NinjaTrader.Strategy
 						log("Pickup bounceTriggered dir="+dir+";target="+target+";stop="+stop+";breakRange="+breakRange);
 				}
 				if(!trade_active&&watch){																									//if broke through the range long
-					if(bid>watch_up+0.25){																									//if broke up 
+					if(bid>watch_up){																									//if broke up 
+						watch=false;
 						bounceTriggered=false;																									//reset secondary watch
 						//breakRange=false;
 						if(pos==0){																											//opening a new range 
@@ -382,6 +382,7 @@ namespace NinjaTrader.Strategy
 							drawRange=true;																									//trigger drawing of range lines on the chart on the next 5min bar	
 							log("BREAKOUT UP Target="+target+";Stop="+stop);
 							breakRange=false;	
+							
 							//range is reset completely as if no history
 						}
 						else if(pos<0){																										//if already short reverse 
@@ -399,8 +400,9 @@ namespace NinjaTrader.Strategy
 							breakRange=true;	
 						}
 					}
-					else if(ask<watch_down-0.25){					
+					else if(ask<watch_down){					
 						bounceTriggered=false;
+						watch=false;
 						//breakRange=false;
 						if(pos==0){
 							trade_active=true;
@@ -443,6 +445,7 @@ namespace NinjaTrader.Strategy
 					log("LOSS EXIT LONG: ask="+ask+";bid="+bid+";watch="+watch+";bounceTriggered="+
 						bounceTriggered+";breakRange="+breakRange);
 					spreadExitLongMarket();
+					outerTrade=false;
 				}
 				else if(pos>0&&(bid>=currentEntry+target/4)){
 					log("WIN EXIT LONG: ask="+ask+";bid="+bid+";watch="+watch+";bounceTriggered="+
@@ -468,12 +471,16 @@ namespace NinjaTrader.Strategy
 					log("STOP LONG: ask="+ask+";bid="+bid);
 					watch=false;																										//give up on the range;
 					bounceTriggered=false;
+					outerTrade=true;	
+					reverse(ask,bid,pos,true);		
 					spreadExitLongMarket();
+																				// outer reversal
+					
 				}
 				else if(pos<0&&sell){
 					log("LOSS EXIT SHORT: ask="+ask+";bid="+bid+";watch="+watch+";bounceTriggered="+
 						bounceTriggered+";breakRange="+breakRange);
-					outerTrade=true;
+					outerTrade=false;
 					spreadExitShortMarket();
 				}
 				else if(pos<0&&(ask<=currentEntry-target/4)){
@@ -497,6 +504,8 @@ namespace NinjaTrader.Strategy
 					log("STOP SHORT: ask="+ask+";bid="+bid);
 					watch=false;
 					bounceTriggered=false;
+					outerTrade=true;	
+					reverse(ask,bid,pos,true);	
 					spreadExitShortMarket();
 				}
 			}
@@ -529,20 +538,21 @@ namespace NinjaTrader.Strategy
 			
 			sell=true;
 			outerTrade=false;			// if it is in fact outer trade, the caller will reset it back
-			int tgt=(int)((10/enteredRange)*((CurrentBars[0]-rangeStartBar+enteredPeriod)/2));//+2;;
-			int stp=(int)stop;
+			double tgt=(int)(target*k);//+2;;
+			//double tgt=12;
+			double stp=stop;
 
 			if(pos>0){
 				innerDir=-1;
 				if (inner){
-					tgt=(int)((bid-watch_down)*4)-2;//enteredRange/2;
+					tgt=((bid-watch_median)*4+enteredRange/6);
 					stp=(int)((watch_up-ask)*4+1);
 				}
 			}
 			else{
 				innerDir=1;
 				if (inner){
-					tgt=(int)((watch_up-ask)*4)-2;//enteredRange/2;
+					tgt=((watch_median-ask)*4+enteredRange/6);
 					stp=(int)((bid-watch_down)*4+1);
 				}
 			
@@ -557,13 +567,14 @@ namespace NinjaTrader.Strategy
 				
 				drawRange=true;
 				bounceTriggered=true;
-				innerTarget=tgt;
-				innerStop=stp;
+				innerTarget=(int)tgt;
+				innerStop=(int)stp;
 				log(tx+" REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down+";tgt="+tgt+";stp="+stp+";breakRange="+breakRange);
 			}
 			else {
-				log("TARGET TOO SMALL TO REVERSE target="+target);
+				log("TARGET("+tgt+") TOO SMALL TO REVERSE target="+target);
 				bounceTriggered=false;
+				watch=false;
 				//breakRange=true;
 			}
 		}
@@ -642,8 +653,7 @@ namespace NinjaTrader.Strategy
 					log("ENTERED at "+currentEntry);
 					enteredBar=CurrentBars[0];
 				}
-				else
-				/*if (exitOrder != null && exitOrder == execution.Order)*/{
+				else{
 					if(execution.Order.OrderAction.CompareTo(OrderAction.Sell)==0){
 						pendingLongExit=true;
 						pendingShortExit=false;
@@ -663,25 +673,15 @@ namespace NinjaTrader.Strategy
 					double net_gain=gain*4*12.5-4;
 					gainTotal+=net_gain;
 					log("EXITED at "+currentExit+";$$$$$$ gain="+gain+";net="+net_gain.ToString("C")+"; $$$$$ total="+gainTotal.ToString("C"));
-					Color c;
-					if(gain>0)
-						c=Color.Green;
-					else
-						c=Color.Red;
+				
 					if(exitOrder==null){
 						log("RESET WATCH");
 						watch=false;
 						bounceTriggered=false;
 					}
-					//DrawArrowDown(name+CurrentBar,true,0,Highs[0][0]+1,c);
-					//log("Draw CurrentBar="+CurrentBars[0]+";enteredBar="+enteredBar);
-					//DrawLine("line"+CurrentBar,true,CurrentBars[0]-enteredBar,enteredHeight,0,Highs[0][0]+1,c,DashStyle.Dot,2);
-				
 					
 					exitOrder=null;		
 				}	
-				//Print(execution.ToString());
-				
 				
 			}
 			
@@ -828,7 +828,7 @@ namespace NinjaTrader.Strategy
         } 
 		[Description("Maximum Range")]
         [GridCategory("Parameters")]
-        public int Range
+        public double Range
         {
             get { return range; }
             set { range = value; }
@@ -857,7 +857,7 @@ namespace NinjaTrader.Strategy
         } 
 		[Description("")]
         [GridCategory("Parameters")]
-        public int MinRange
+        public double MinRange
         {
             get { return minRange; }
             set { minRange= value; }
