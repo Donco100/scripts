@@ -38,6 +38,7 @@ namespace NinjaTrader.Strategy
 		private double profitTarget=250;
 		private double stopLoss=200;
 		private double k=1.5;
+		private int timeLimitTrade;
 		
 		//trade params
 		private double stop = 0;
@@ -206,10 +207,10 @@ namespace NinjaTrader.Strategy
 					int r=rangePeriod+1;
 					while(r>minRangePeriod){
 						r--;
-						double mx=Math.Max(MAX(Closes[3],r)[0],MAX(Opens[3],r)[0]);									// high-end of the body (narrow) range
-						double mn=Math.Min(MIN(Closes[2],r)[0],MIN(Opens[2],r)[0]); 								// low-end of the body range
-						double mxh=MAX(Highs[3],r)[3];            													// high end of the full (wide) range 
-						double mnh=MIN(Lows[2],r)[2];																// low-end of the wide range
+						double mx=Math.Max(MAX(Closes[2],r)[0],MAX(Opens[2],r)[0]);									// high-end of the body (narrow) range
+						double mn=Math.Min(MIN(Closes[3],r)[0],MIN(Opens[3],r)[0]); 								// low-end of the body range
+						double mxh=MAX(Highs[2],r)[3];            													// high end of the full (wide) range 
+						double mnh=MIN(Lows[3],r)[2];																// low-end of the wide range
 						
 						double wr=mxh-mnh;																			// wide range, high to lows
 						double nr=mx-mn;										    								// narrow range, for bodies only	
@@ -227,8 +228,8 @@ namespace NinjaTrader.Strategy
 							bool touchedBottom=false;																// at least one bar in this half touched bottom
 												
 							for(int i=0;i<hrp;i++){
-								double top=Math.Max(Opens[2][i],Closes[2][i]);
-								double btm=Math.Min(Opens[3][i],Closes[3][i]);
+								double top=Math.Max(Opens[3][i],Closes[3][i]);
+								double btm=Math.Min(Opens[2][i],Closes[2][i]);
 								sbup+=top;       																	// high-end of the candle body
 								sbdn+=btm;       																	// low-end of the candle body
 								if(top>=mx&&btm<=rm)
@@ -265,7 +266,7 @@ namespace NinjaTrader.Strategy
 								//averages:
 								abup=sbup/count;
 								abdn=sbdn/count;
-								if((abdn<rm&&abup>rm)/*&&touchedTop&&touchedBottom*/){								// range detected
+								if((abdn<rm&&abup>rm)){								// range detected
 									enteredRange=(int)wr*4;
 									if(nr*4<minRange||enteredRange>range||nr>wr)
 										continue;
@@ -369,6 +370,13 @@ namespace NinjaTrader.Strategy
 						stop=innerStop;
 						log("Pickup bounceTriggered dir="+dir+";target="+target+";stop="+stop+";breakRange="+breakRange);
 				}
+				if(pos!=0&&BarsInProgress==0&&CurrentBar-enteredBar>timeLimitTrade){
+					log("LONG TRADE DETECTED");
+					if((pos>0&&bid>currentEntry)||(pos<0&&ask<currentEntry))
+						log("POSITIVE OUT");
+						sell=true;
+						watch=false;
+				}
 				if(!trade_active&&watch){																									//if broke through the range long
 					if(bid>watch_up){																									//if broke up 
 						watch=false;
@@ -442,7 +450,7 @@ namespace NinjaTrader.Strategy
 					spreadEnterShortMarket();
 				}
 				else if(pos>0&&sell){
-					log("LOSS EXIT LONG: ask="+ask+";bid="+bid+";watch="+watch+";bounceTriggered="+
+					log("LOSS OR TIME EXIT LONG: ask="+ask+";bid="+bid+";watch="+watch+";bounceTriggered="+
 						bounceTriggered+";breakRange="+breakRange);
 					spreadExitLongMarket();
 					outerTrade=false;
@@ -478,7 +486,7 @@ namespace NinjaTrader.Strategy
 					
 				}
 				else if(pos<0&&sell){
-					log("LOSS EXIT SHORT: ask="+ask+";bid="+bid+";watch="+watch+";bounceTriggered="+
+					log("LOSS OR TIME EXIT SHORT: ask="+ask+";bid="+bid+";watch="+watch+";bounceTriggered="+
 						bounceTriggered+";breakRange="+breakRange);
 					outerTrade=false;
 					spreadExitShortMarket();
@@ -869,6 +877,14 @@ namespace NinjaTrader.Strategy
             get { return k; }
             set {  k= value; }
         } 
+		[Description("Target range multiplier: target=range*K")]
+        [GridCategory("Parameters")]
+        public int TimeLimitTrade
+        {
+            get { return timeLimitTrade; }
+            set {  timeLimitTrade= value; }
+        } 
+		[Description("Exit the positive trades after this number of bars")]
         #endregion
     }
 }
