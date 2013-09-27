@@ -281,7 +281,7 @@ namespace NinjaTrader.Strategy
 										watch_down=mnh;
 										watch_median=mnh+(mxh-mnh)/2;
 										double tgt=(1.0/((double)enteredRange));//+2;;
-										target=(int)(tgt*tgt*4*enteredPeriod*(wr-nr)*2+hrp/2);
+										target=(int)(tgt*tgt*4*enteredPeriod*(wr-nr)*2+hrp);
 										log("proposed target="+target+";tgt="+tgt);
 										//target=Math.Max((int)(enteredRange*k),2);	// right?
 									   //target=Math.Max((int)((enteredRange+enteredPeriod)/3),2);	
@@ -353,8 +353,8 @@ namespace NinjaTrader.Strategy
 				}
 			
 				if(outerTrade&&!pendingPosition													
-					&&(pos>0&&ask<watch_up-0.50&&ask<currentEntry-0.5
-						||pos<0&&bid>watch_down+0.50&&bid>currentEntry+0.5)){																//loss stop inside the range
+					&&(pos>0&&ask<watch_up-0.25&&ask<currentEntry-0.5
+						||pos<0&&bid>watch_down+0.25&&bid>currentEntry+0.5)){																//loss stop inside the range
 					log("Detected inside loss watch_up="+watch_up+";watch_down="+watch_down+";ask="+ask+";bid="+bid+";entry="+currentEntry);
 					reverse(ask,bid,pos,true);																								//inner (inside the range) reversal	
 					outerTrade=false;
@@ -472,7 +472,7 @@ namespace NinjaTrader.Strategy
 					watch=false;																										//give up on the range;
 					bounceTriggered=false;
 					outerTrade=true;	
-					reverse(ask,bid,pos,true);		
+					reverse(ask,bid,pos,false);		
 					spreadExitLongMarket();
 																				// outer reversal
 					
@@ -505,7 +505,7 @@ namespace NinjaTrader.Strategy
 					watch=false;
 					bounceTriggered=false;
 					outerTrade=true;	
-					reverse(ask,bid,pos,true);	
+					reverse(ask,bid,pos,false);	
 					spreadExitShortMarket();
 				}
 			}
@@ -538,9 +538,9 @@ namespace NinjaTrader.Strategy
 			
 			sell=true;
 			outerTrade=false;			// if it is in fact outer trade, the caller will reset it back
-			double tgt=(int)(target*k);//+2;;
+			double tgt=enteredRange*k;//+2;;
 			//double tgt=12;
-			double stp=stop;
+			double stp=enteredRange+2;
 
 			if(pos>0){
 				innerDir=-1;
