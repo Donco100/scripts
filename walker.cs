@@ -38,7 +38,7 @@ namespace NinjaTrader.Strategy
 		private double profitTarget=250;
 		private double stopLoss=200;
 		private double k=1.5;
-		private int timeLimitTrade;
+		private int timeLimitTrade=12;
 		
 		//trade params
 		private double stop = 0;
@@ -97,8 +97,6 @@ namespace NinjaTrader.Strategy
 		double enteredRange=0;
 		int enteredPeriod=0;
 		
-		
-		
 		private IOrder entryOrder = null;
 		private IOrder exitOrder = null;
 		int pendingBar=0;		
@@ -108,7 +106,7 @@ namespace NinjaTrader.Strategy
 		
 		DateTime firstTime;
 		bool trailStop=false;
-		
+		bool noEntry=false;
 		
 		
 		//Stack<int> spreadAsks=new Stack<int>();
@@ -183,7 +181,7 @@ namespace NinjaTrader.Strategy
 				currentBar=CurrentBar;
 				
 				#region Range Chart Drawing
-				if(drawRange){																						// delayed drawing of the range lines on a 5min tick
+				if(drawRange||watch){																						// delayed drawing of the range lines on a 5min tick
 					int startingBar=CurrentBars[0]-rangeStartBar+enteredPeriod;
 					DrawLine("uwline"+rangeStartBar,true,startingBar,watch_up,1,
 						watch_up,Color.DarkOliveGreen,DashStyle.Solid,1);
@@ -191,8 +189,8 @@ namespace NinjaTrader.Strategy
 						watch_down,Color.DarkBlue,DashStyle.Solid,1);
 					DrawLine("mline"+ rangeStartBar,true,startingBar,watch_median,1,
 						watch_median,Color.DarkGray,DashStyle.Dash,1);
-					DrawText( "t"+rangeStartBar,true,"R:"+enteredRange+"  Tgt:"
-						+target+ "  Stop:"+stop+"  Prd:"+enteredPeriod,CurrentBars[0]
+					DrawText( "t"+rangeStartBar,true,"R:"+enteredRange+"  Total:"
+						+gainTotal.ToString("c"),CurrentBars[0]
 						-rangeStartBar+enteredPeriod,watch_up+lineNum()*0.25,20,Color.Black, 
 						new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
 					drawRange=false;	
@@ -214,7 +212,7 @@ namespace NinjaTrader.Strategy
 						
 						double wr=mxh-mnh;																			// wide range, high to lows
 						double nr=mx-mn;										    								// narrow range, for bodies only	
-						if(wr<=range/4&&wr>=minRange/4){								   									// max range					
+						if(wr<=range/4&&wr>=minRange/4){								   							// max range					
 										
 							double rm=mnh+wr/2;																		// range median
 							
@@ -267,43 +265,54 @@ namespace NinjaTrader.Strategy
 								abup=sbup/count;
 								abdn=sbdn/count;
 								if((abdn<rm&&abup>rm)){								// range detected
-									enteredRange=(int)wr*4;
-									if(nr*4<minRange||enteredRange>range||nr>wr)
+									int er=(int)wr*4;
+									
+									if(nr*4<minRange||er>range||nr>wr)
 										continue;
 									//verify that the data is good:
 									int lastBid=ToTime(Times[5][0]);
 									int lastAsk=ToTime(Times[4][0]);
 									if((ToTime(Time[0])-lastBid<60)&&ToTime(Time[0])-lastAsk<60){					//gap less than 60 secs
 										//Starting a new range:
-										bounceTriggered=false;														//reset secondary (bounce) watch
-										breakRange=false;															//reset hard break of the range indicator
-										watch=true;																	//set watch indicator
-										watch_up=mxh;
-										watch_down=mnh;
-										watch_median=mnh+(mxh-mnh)/2;
-										double tgt=(1.0/((double)enteredRange));//+2;;
-										target=(int)(tgt*tgt*4*enteredPeriod*(wr-nr)*2+hrp);
-										log("proposed target="+target+";tgt="+tgt);
-										//target=Math.Max((int)(enteredRange*k),2);	// right?
-									   //target=Math.Max((int)((enteredRange+enteredPeriod)/3),2);	
-										target=Math.Max(target,2);
-										rangeStartBar=CurrentBars[0];
-										enteredPeriod=r;
-										log("START WATCH target="+target+";range="+enteredRange+";rangePeriod="
-											+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="
-											+bounceTriggered+";breakRange="+breakRange);
-										DrawDiamond("dm"+CurrentBars[1],true,0,watch_up+0.25,Color.Blue);
-										if(gainTotal>0){
-											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
-											0,watch_up+lineNum()*0.25,20,Color.Green, new Font("Ariel",8),
-											StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-										}
-										else{
-											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
-											0,watch_up+lineNum()*0.25,20,Color.Red, new Font("Ariel",8),
-											StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+										double tgt=(1.0/((double)er));//+2;;
+										
+										tgt=(tgt*tgt*4*enteredPeriod*(wr-nr)*2+hrp);
+										log("proposed tgt="+tgt);
+										if(tgt>=2){
+										/************************************************************************/
+										//  RANGE START
+											bounceTriggered=false;													//reset secondary (bounce) watch
+											breakRange=false;														//reset hard break of the range indicator
+											noEntry=false;
+											watch=true;																//set watch indicator
+											watch_up=mxh;
+											watch_down=mnh;
+											watch_median=mnh+(mxh-mnh)/2;
+											enteredRange=er;
+											target=(int)tgt;
+										
+											//target=Math.Max(target,2);
+											rangeStartBar=CurrentBars[0];
+											enteredPeriod=r;
+											log("START WATCH target="+target+";range="+enteredRange+";rangePeriod="
+												+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="
+												+bounceTriggered+";breakRange="+breakRange);
+											DrawDiamond("dm"+CurrentBars[1],true,0,watch_up+0.25,Color.Blue);
+											if(gainTotal>0){
+												DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
+												0,watch_up+lineNum()*0.25,20,Color.Green, new Font("Ariel",8),
+												StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+											}
+											else{
+												DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
+												0,watch_up+lineNum()*0.25,20,Color.Red, new Font("Ariel",8),
+												StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+											}
+											drawRange=true;
+										/************************************************************************/											
 										}
 									break;
+									
 									}
 								}
 							}
@@ -311,13 +320,19 @@ namespace NinjaTrader.Strategy
 					}
 				}
 				//if(watch&&!trade_active)
-				//	log("$$$ WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="+bounceTriggered+";breakRange="+breakRange);
+				//	log("$$$ WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="+bounceTriggered+";breakRange="+breakRange);E
+				//(!watch)
+				//oEntry=true;
 			}
 			if(BarsInProgress==4||BarsInProgress==5||BarsInProgress==0){
 				if(Historical&&!tradingLive){ // when backtesting to the trades
 					processTick(Closes[4][0],Closes[5][0]);
 				}
 				else if(!Historical&&tradingLive){
+					if(virgin){
+						virgin=false;
+						watch=false;
+					}
 					processTick(GetCurrentAsk(1),GetCurrentBid(1));
 				}
 			}
@@ -352,7 +367,8 @@ namespace NinjaTrader.Strategy
 				if(pos==0&&(iTime>=iLastEntryTime&&iTime<iRestartTime/*/||iTime<iStartTime*/)){
 					return;
 				}
-			
+				if(pos==0&&noEntry)
+					return;
 				if(outerTrade&&!pendingPosition													
 					&&(pos>0&&ask<watch_up-0.25&&ask<currentEntry-0.5
 						||pos<0&&bid>watch_down+0.25&&bid>currentEntry+0.5)){																//loss stop inside the range
@@ -436,7 +452,41 @@ namespace NinjaTrader.Strategy
 						}
 					}
 				}
+				if(!trade_active&&pos==0&&watch){
+					if (bid>watch_median&&bid<watch_up){
+					
+						int offset=(int)(ask-watch_median)*4;
+						target=offset+4;
+						if(ask-target/4<=watch_down)
+							target=(int)(ask-watch_down)*4-2;
+						stop=(int)((watch_up-bid)*4+2);
+						trade_active=true;
+						dir=-1;
+						drawRange=true;	
+						log("IN UPDOWN Target="+target+";Stop="+stop);
+					}
+					else if (ask<watch_median&&ask>watch_down){
+					
+						int offset=(int)((watch_median-bid)*4);
+						target=offset+4;
+						if(bid+target/4>=watch_up)
+							target=(int)(watch_up-bid)*4-2;
+						stop=(int)((ask-watch_down)*4+2);
+						trade_active=true;
+						dir=1;
+						drawRange=true;	
+						log("IN DOWNUP Target="+target+";Stop="+stop);
+					}
+					else if(bid>watch_up||ask<watch_down){
+						watch=false;
+					}
 				
+				}else {
+					/*if(pos>0&&ask<watch_down||pos<0&&bid>watch_up){
+						log("SELL!!!");
+						sell=true;
+					}*/
+				}
 				if(trade_active&&pos==0&&dir>0){
 					sell=false;
 					trailStop=false;
@@ -655,7 +705,7 @@ namespace NinjaTrader.Strategy
 		protected override void OnExecution(IExecution execution){
 			// Remember to check the underlying IOrder object for null before trying to access its properties
 			if (execution.Order != null && execution.Order.OrderState == OrderState.Filled){
-				log("Execution:"+execution.ToString());
+				//log("Execution:"+execution.ToString());
 				if (entryOrder != null && entryOrder == execution.Order){
 					currentEntry=execution.Order.AvgFillPrice;
 					log("ENTERED at "+currentEntry);
@@ -679,6 +729,7 @@ namespace NinjaTrader.Strategy
 						gain=(currentEntry-currentExit);
 					}
 					double net_gain=gain*4*12.5-4;
+					
 					gainTotal+=net_gain;
 					log("EXITED at "+currentExit+";$$$$$$ gain="+gain+";net="+net_gain.ToString("C")+"; $$$$$ total="+gainTotal.ToString("C"));
 				
@@ -877,14 +928,14 @@ namespace NinjaTrader.Strategy
             get { return k; }
             set {  k= value; }
         } 
-		[Description("Target range multiplier: target=range*K")]
+		[Description("Exit the positive trades after this number of bars")]
         [GridCategory("Parameters")]
         public int TimeLimitTrade
         {
             get { return timeLimitTrade; }
             set {  timeLimitTrade= value; }
         } 
-		[Description("Exit the positive trades after this number of bars")]
+		
         #endregion
     }
 }
