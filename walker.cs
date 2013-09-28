@@ -33,10 +33,10 @@ namespace NinjaTrader.Strategy
 		private string strategyName="Walker";  //Default setting for Name
 		private double range=10;
 		private double minRange=4;
-		private int rangePeriod=18;
+		private int rangePeriod=36;
 		private int minRangePeriod=3;
 		private double profitTarget=250;
-		private double stopLoss=200;
+		private double stopLoss=400;
 		private double k=1.5;
 		private int timeLimitTrade=12;
 		
@@ -89,7 +89,8 @@ namespace NinjaTrader.Strategy
 		int innerStop;
 		bool breakRange=false;																							//does not immediately end watches but will prevent next outer reversal
 		bool outerTrade=false;
-		
+		double delayedTarget=0;
+		double delayedStop=0;
 		//additional range state
 		int rangeStartBar=0;
 		int enteredBar=0;
@@ -107,7 +108,11 @@ namespace NinjaTrader.Strategy
 		DateTime firstTime;
 		bool trailStop=false;
 		bool noEntry=false;
+		bool preBounce=false;
 		
+		double thebid=0;
+		double theask=0;
+		bool allowPreBounce=true;
 		
 		//Stack<int> spreadAsks=new Stack<int>();
         // User defined variables (add any user defined variables below)
@@ -153,6 +158,17 @@ namespace NinjaTrader.Strategy
 		protected override void OnBarUpdate(){
 		//	if(BarsInProgress==2 ||BarsInProgress==3||BarsInProgress==4||BarsInProgress==5)
 		//		return;
+			if(BarsInProgress==4){
+				if(Closes[4][0].Equals(theask))
+					return;
+				theask=Closes[4][0];
+			}				
+			
+			if(BarsInProgress==5){
+				if(Closes[5][0].Equals(thebid))
+					return;
+				thebid=Closes[5][0];
+			}				
 			t=Times[1][0];
 			
 			if(active==false){
@@ -276,7 +292,7 @@ namespace NinjaTrader.Strategy
 										//Starting a new range:
 										double tgt=(1.0/((double)er));//+2;;
 										
-										tgt=(tgt*tgt*4*enteredPeriod*(wr-nr)*2+hrp);
+										tgt=(tgt*tgt*4*enteredPeriod*(wr-nr)*3+hrp);
 										log("proposed tgt="+tgt);
 										if(tgt>=2){
 										/************************************************************************/
@@ -290,7 +306,7 @@ namespace NinjaTrader.Strategy
 											watch_median=mnh+(mxh-mnh)/2;
 											enteredRange=er;
 											target=(int)tgt;
-										
+											preBounce=false;
 											//target=Math.Max(target,2);
 											rangeStartBar=CurrentBars[0];
 											enteredPeriod=r;
@@ -326,12 +342,13 @@ namespace NinjaTrader.Strategy
 			}
 			if(BarsInProgress==4||BarsInProgress==5||BarsInProgress==0){
 				if(Historical&&!tradingLive){ // when backtesting to the trades
-					processTick(Closes[4][0],Closes[5][0]);
+					processTick(theask,thebid);
 				}
 				else if(!Historical&&tradingLive){
 					if(virgin){
 						virgin=false;
 						watch=false;
+						log("RESET VIRGIN WATCH");
 					}
 					processTick(GetCurrentAsk(1),GetCurrentBid(1));
 				}
@@ -344,11 +361,15 @@ namespace NinjaTrader.Strategy
 				return;
 			}
 			//log("processTick Bar="+BarsInProgress+";Time="+ToTime(Time[0]));	
+			int iTime=ToTime(Time[0]);	
+			/*if(iTime>43500&&iTime<45500){
+				log("DEBUG watch="+watch+";pendingPosition="+pendingPosition+";ask="+ask+";bid="+bid+";pos="+dirOfPosition()+"tradeActive="+trade_active);
+			}*/
 			if(!pendingPosition){
 				//first check for position
 				int pos= dirOfPosition();
 				
-				int iTime=ToTime(Time[0]);	
+			
 				
 				if(pos!=0) {
 						
@@ -377,13 +398,23 @@ namespace NinjaTrader.Strategy
 					outerTrade=false;
 					//breakRange=true;																										//do it once per range - stop all future outer reversals
 				}				
-				if(bounceTriggered&&pos==0){																									//secondary (inner) watch detector and  pick-up (delayed trade initialization) clause
+				if(bounceTriggered&&pos==0&&watch){																									//secondary (inner) watch detector and  pick-up (delayed trade initialization) clause
 						dir=innerDir;
 						
 						trade_active=true;
 						bounceTriggered=false;
-						target=innerTarget;
-						stop=innerStop;
+						//target=innerTarget;
+						//stop=innerStop;
+						if(dir>0){
+							target=(delayedTarget-ask)*4;
+							stop=(bid-delayedStop)*4;
+						}
+						else{
+							target=(bid-delayedTarget)*4;
+							stop=(delayedStop-ask)*4;
+						}
+						if(target<1)
+							trade_active=false;
 						log("Pickup bounceTriggered dir="+dir+";target="+target+";stop="+stop+";breakRange="+breakRange);
 				}
 				if(pos!=0&&BarsInProgress==0&&CurrentBar-enteredBar>timeLimitTrade){
@@ -395,10 +426,9 @@ namespace NinjaTrader.Strategy
 				}
 				if(!trade_active&&watch){																									//if broke through the range long
 					if(bid>watch_up){																									//if broke up 
-						watch=false;
-						bounceTriggered=false;																									//reset secondary watch
-						//breakRange=false;
 						if(pos==0){																											//opening a new range 
+							watch=false;
+							bounceTriggered=false;																									//reset secondary watch
 							trade_active=true;																								//trigger the trade in the clause below
 							dir=1;																											//long
 							outerTrade=true;
@@ -416,8 +446,12 @@ namespace NinjaTrader.Strategy
 							}
 							else{
 								sell=true;
-								watch=false;
-								bounceTriggered=false;
+								if(!preBounce){
+									watch=false;
+									bounceTriggered=false;
+								}
+								else
+									preBounce=false;
 								}
 							
 							log("SHORT OUTER REVERSAL breakRange=true;");
@@ -425,10 +459,11 @@ namespace NinjaTrader.Strategy
 						}
 					}
 					else if(ask<watch_down){					
-						bounceTriggered=false;
-						watch=false;
+						
 						//breakRange=false;
 						if(pos==0){
+							bounceTriggered=false;
+							watch=false;
 							trade_active=true;
 							dir=-1;
 							outerTrade=true;
@@ -444,8 +479,12 @@ namespace NinjaTrader.Strategy
 								}
 							else{
 								sell=true;	
-								watch=false;
-								bounceTriggered=false;
+								if(!preBounce){
+									watch=false;
+									bounceTriggered=false;
+								}
+								else
+									preBounce=false;
 							}
 							log("LONG OUTER REVERSAL breakRange=true;"); 
 							breakRange=true;	
@@ -453,32 +492,43 @@ namespace NinjaTrader.Strategy
 					}
 				}
 				if(!trade_active&&pos==0&&watch){
-					if (bid>watch_median&&bid<watch_up){
+					if (allowPreBounce&&bid>watch_median&&bid<watch_up){
 					
-						int offset=(int)(ask-watch_median)*4;
-						target=offset+4;
+						double offset=(bid-watch_median)*4;
+						/*target=offset+4;*/
+						target=2+offset;
 						if(ask-target/4<=watch_down)
 							target=(int)(ask-watch_down)*4-2;
-						stop=(int)((watch_up-bid)*4+2);
+						target=Math.Max(target,2);
+						stop=(int)((watch_up-ask)*4+3);
+						
+						//target=(int)((watch_median-watch_down)*4/2+offset);
+						
 						trade_active=true;
 						dir=-1;
-						drawRange=true;	
+						preBounce=true;
+						outerTrade=false;
 						log("IN UPDOWN Target="+target+";Stop="+stop);
 					}
-					else if (ask<watch_median&&ask>watch_down){
+					else if (allowPreBounce&&ask<watch_median&&ask>watch_down){
 					
-						int offset=(int)((watch_median-bid)*4);
-						target=offset+4;
+						double offset=(watch_median-ask)*4;
+						//target=offset+4;
+						//target=(int)((watch_up-watch_median)*4/2+offset);
+						target=3+offset;
+						target=Math.Max(target,2);
 						if(bid+target/4>=watch_up)
 							target=(int)(watch_up-bid)*4-2;
-						stop=(int)((ask-watch_down)*4+2);
+						stop=(int)((bid-watch_down)*4+3);
 						trade_active=true;
 						dir=1;
-						drawRange=true;	
+						outerTrade=false;;
+						preBounce=true;
 						log("IN DOWNUP Target="+target+";Stop="+stop);
 					}
 					else if(bid>watch_up||ask<watch_down){
 						watch=false;
+						log("idle watch ended");
 					}
 				
 				}else {
@@ -513,8 +563,10 @@ namespace NinjaTrader.Strategy
 						reverse(ask,bid,pos,true);																						//side effect - sets sell
 					}
 					else{
+						if(bid>watch_up){
 						watch=false;																									//no reversal - give up on range
 						bounceTriggered=false;
+						}
 					}
 					spreadExitLongMarket();
 				}
@@ -547,8 +599,10 @@ namespace NinjaTrader.Strategy
 						reverse(ask,bid,pos,true);
 					}
 					else{																												// keep range watch on reversals only
-						watch=false;
-						bounceTriggered=false;
+						if(ask<watch_down){
+							watch=false;
+							bounceTriggered=false;
+						}
 					}
 					spreadExitShortMarket();
 				}
@@ -625,9 +679,19 @@ namespace NinjaTrader.Strategy
 				
 				drawRange=true;
 				bounceTriggered=true;
-				innerTarget=(int)tgt;
-				innerStop=(int)stp;
-				log(tx+" REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down+";tgt="+tgt+";stp="+stp+";breakRange="+breakRange);
+				tgt=(int)tgt;
+				stp=(int)stp;
+				if(innerDir>0){
+					delayedTarget=ask+tgt/4;
+					delayedStop=bid-stp/4;
+				}
+				else{
+					delayedTarget=bid-tgt/4;
+					delayedStop=ask+stp/4;
+				}
+				//innerTarget=(int)tgt;
+				//innerStop=(int)stp;
+				log(tx+" REVERSAL ASK="+ask+";BID="+bid+";watch_up="+watch_up+";watch_down="+watch_down+";tgt="+tgt+";stp="+stp+";breakRange="+breakRange+";delayedTarget="+delayedTarget+";delayedStop="+delayedStop);
 			}
 			else {
 				log("TARGET("+tgt+") TOO SMALL TO REVERSE target="+target);
@@ -899,14 +963,14 @@ namespace NinjaTrader.Strategy
         {
             get { return profitTarget; }
             set { profitTarget = value; }
-        } 
+        }*/ 
 		[Description("")]
         [GridCategory("Parameters")]
         public double StopLoss
         {
             get { return stopLoss; }
             set { stopLoss = value; }
-        } */
+        } 
 		[Description("")]
         [GridCategory("Parameters")]
         public int MinRangePeriod
@@ -935,7 +999,13 @@ namespace NinjaTrader.Strategy
             get { return timeLimitTrade; }
             set {  timeLimitTrade= value; }
         } 
-		
+		[Description("Enables oscillating before the breakout")]
+        [GridCategory("Parameters")]
+        public bool AllowPreBounce
+        {
+            get { return allowPreBounce; }
+            set {  allowPreBounce= value; }
+        } 
         #endregion
     }
 }
