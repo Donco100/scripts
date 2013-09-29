@@ -657,14 +657,14 @@ namespace NinjaTrader.Strategy
 			if(pos>0){
 				innerDir=-1;
 				if (inner){
-					tgt=((bid-watch_median)*4+enteredRange/6);
+					tgt=((bid-watch_median)*4+enteredRange/4);
 					stp=(int)((watch_up-ask)*4+1);
 				}
 			}
 			else{
 				innerDir=1;
 				if (inner){
-					tgt=((watch_median-ask)*4+enteredRange/6);
+					tgt=((watch_median-ask)*4+enteredRange/4);
 					stp=(int)((bid-watch_down)*4+1);
 				}
 			
