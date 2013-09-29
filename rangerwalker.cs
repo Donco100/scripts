@@ -68,6 +68,7 @@ namespace NinjaTrader.Strategy
 			public double breakoutTarget;
 			public double breakoutStop;
 			public bool breakout;
+			public int lastSwingInDir;
 		};
 
 		public struct Tick{
@@ -94,7 +95,7 @@ namespace NinjaTrader.Strategy
 		
         #region Variables
         //properties
-		private int     orderBarIndex=1;   																					// DataSeries 1 for all orders
+		private int     orderBarIndex=1;   																			// DataSeries 1 for all orders
 		private int 	numContractrs = 1; // Default setting for NumContractrs
 		private bool 	tradingLive=false; //Default setting for TradingLive
 		private string 	contractMonth="12-13"; //Default setting for ContractMonth
@@ -107,90 +108,30 @@ namespace NinjaTrader.Strategy
 		private double 	stopLoss=400;
 		private int 	timeLimitTrade=12;
 		private string 	name=""; 
-		private int     tm=1;																								//how far past the line to go before event is triggered
+		private int     tm=1;	
+		private bool    allowSwingOut=true;		
+		private bool 	allowPreBounce=false;
+		//how far past the line to go before event is triggered
 		
 		Trade 		trade		=	new Trade();
 		Execution 	ex			=	new Execution();
 		int 		bar			=	0;	
 		Tick		tick		=	new Tick();
-		bool 		virgin		=	true;																					//detects first live tick to reset any existing ranges
+		bool 		virgin		=	true;																			//detects first live tick to reset any existing ranges
 		Range		range		=	new Range();
 		int 		currentBar	=	0;
-		double 		gainTotal	=	0.0;																					//gain accumulator
+		double 		gainTotal	=	0.0;																			//gain accumulator
 		int 		iStartTime=20000;
 		int 		iLastEntryTime=153000;
 		int 		iExitOnCloseTime=155800;
 		int 		iRestartTime=180000;
-		double		tf=4;																									//tick fraction - how many ticks per point; 4 for QM, 1 for YM
-		bool 		allowPreBounce=true;
-		DateTime 	t;																									//current exchange time
+		double		tf=4;																							//tick fraction - how many ticks per point; 4 for QM, 1 for YM
+	
+		DateTime 	t;																								//current exchange time
 		string 		firstInstrumentSpec="";
-		int 		lineCount=0;																								//shift text lines on the chart so that they do not overlap
-		/*
-		//trade params
-		private double stop = 0;
-		private double target = 0;
-		int dir=0;
+		int 		lineCount=0;																					//shift text lines on the chart so that they do not overlap
 		
 		
-		
-		
-		private double currentEntry=0;
-		private string dayStartTime = "2:00:00 AM";
-		private string lastEntryTime = "3:30:00 PM";
-		private string exitOnCloseTime = "3:58:00 PM";
-		
-		
-		private bool active=false;
-		
-		
-		
-		*/
-		
-
-/*
-		bool sell=false;
-		bool trade_active=false;
-		
-		
-		
-		//watch:
-		bool watch=false;
-		double watch_up=0;
-		double watch_down=0;
-		double watch_median=0;
-		bool bounceTriggered=false;																							//goes in effect on reversal to get into oscillating (bouncing) mode within the range
-		int innerDir=0;
-		int innerTarget;
-		int innerStop;
-		bool breakRange=false;																							//does not immediately end watches but will prevent next outer reversal
-		bool outerTrade=false;
-		double delayedTarget=0;
-		double delayedStop=0;
-		//additional range state
-		int rangeStartBar=0;
-		int enteredBar=0;
-		double enteredHeight=0.0;
-		double enteredRange=0;
-		int enteredPeriod=0;
-		
-		
-		int pendingBar=0;		
-		
-		bool drawRange=false;
-		int lineCount=0;																								//shift text lines on the chart so that they do not overlap
-		
-		
-		bool trailStop=false;
-		bool noEntry=false;
-		bool preBounce=false;
-		
-		double thebid=0;
-		double theask=0;
-		
-		*/
-		//Stack<int> spreadAsks=new Stack<int>();
-        // User defined variables (add any user defined variables below)
         #endregion
 		protected override void OnStartUp()
 		{
@@ -244,7 +185,7 @@ namespace NinjaTrader.Strategy
 			tick.iTime=ToTime(Time[0]);
 
 			if(BarsInProgress==0){
-				tick0(CurrentBar);																								//misc bar 0 processing
+				tick0(CurrentBar);																					//misc bar 0 processing
 				barDetector();
 			}
 			if(BarsInProgress==4||BarsInProgress==5||BarsInProgress==0){
@@ -276,7 +217,7 @@ namespace NinjaTrader.Strategy
 			currentBar=CurrentBar;
 			
 			#region Range Chart Drawing
-			if(range.active){																						// delayed drawing of the range lines on a 5min tick
+			if(range.active){																					// delayed drawing of the range lines on a 5min tick
 				int startingBar=bar-range.startBar+range.period;
 				DrawLine("uwline"+range.startBar,true,startingBar,range.high,1,
 					range.high,Color.DarkOliveGreen,DashStyle.Solid,1);
@@ -370,6 +311,7 @@ namespace NinjaTrader.Strategy
 									double tgt=(1.0/((double)er));//+2;;
 									
 									tgt=(tgt*tgt*4*r*(wr-nr)*3+hrp);
+									tgt=Math.Round(tgt,0);
 									//tgt=5;
 									log("proposed tgt="+tgt);
 									if(tgt>=2){
@@ -383,7 +325,8 @@ namespace NinjaTrader.Strategy
 										range.low=mnh;
 										range.median=mnh+(mxh-mnh)/2;
 										range.amplitude=er;
-										range.breakoutTarget=(int)tgt;
+										range.breakoutTarget=Math.Round(tgt,0);
+										range.lastSwingInDir=0;
 										//preBounce=false;
 										//target=Math.Max(target,2);
 										range.startBar=bar;
@@ -440,60 +383,79 @@ namespace NinjaTrader.Strategy
 			}*/
 		}
 		protected  void processTradeEvent(TRADE_EVENT e){
-		logState("TRADE EVENT BEGIN "+e);
+		
 		switch(e){
 				case TRADE_EVENT.EXIT_ON_EOD:
 					if(getPos()>0)
 						exitLongMarket();
 					else
 						exitShortMarket();
+					logState("TRADE EVENT "+e);	
 					break;
 				case TRADE_EVENT.SWING_OUT_LONG:
 					trade.type=TRADE_TYPE.SWING_OUT;
 					trade.target=range.breakoutTarget;
 					trade.stop=(tick.ask-range.low)*tf+tm*2;
 					enterLongMarket();
+					//enterLong(tick.bid);
+					logState("TRADE EVENT "+e);	
 					break;
 				case TRADE_EVENT.SWING_OUT_SHORT:
 					trade.type=TRADE_TYPE.SWING_OUT;
 					trade.target=range.breakoutTarget;
 					trade.stop=(range.high-tick.bid)*tf+tm*2;
 					enterShortMarket();
+					//enterShort(tick.ask);
+					logState("TRADE EVENT "+e);	
 					break;
 				case TRADE_EVENT.SWING_IN_LONG:
-					trade.type=TRADE_TYPE.SWING_IN;
-					trade.target=(int)((range.median-tick.ask)*tf);
-					//if(tick.bid+trade.target/tf>=range.high)
-					//	trade.target=(int)(range.high-tick.bid)*tf-tm;
-					trade.target=Math.Max(trade.target,tm);
-					trade.stop=(int)((tick.bid-range.low)*tf);
-					enterLongMarket();	
+					if(range.lastSwingInDir<=0){
+						trade.type=TRADE_TYPE.SWING_IN;
+						//double t=Math.Max((range.high-range.median)/4,0.25);
+						double t=0.25;
+						trade.target=(int)(Math.Round(range.median-tick.bid+t,0)*tf);
+						//if(tick.bid+trade.target/tf>=range.high)
+						//	trade.target=(int)(range.high-tick.bid)*tf-tm;
+						trade.target=2;Math.Max(trade.target,tm);
+						trade.stop=(int)((tick.bid-range.low)*tf+tm+2);
+						enterLong(tick.bid);	
+						range.lastSwingInDir=1;
+						logState("TRADE EVENT "+e);	
+					}
 					break;	
 				case TRADE_EVENT.SWING_IN_SHORT:
-					trade.type=TRADE_TYPE.SWING_IN;
-					//logState("DEBUG: tick.ask-range.median="+(tick.ask-range.median)+";tgt="+((tick.ask-range.median)*tf)+";target="+((tick.ask-range.median)*tf+tm));
-					trade.target=(int)((tick.bid-range.median)*tf);
-					//if(tick.ask-trade.target/tf<=range.low)
-					//	trade.target=(int)(tick.ask-range.low)*tf-tm;
-					trade.target=Math.Max(trade.target,tm);
-					trade.stop=(int)((range.high-tick.ask)*tf+tm);
-					enterShortMarket();	
+					if(range.lastSwingInDir<=0){
+						trade.type=TRADE_TYPE.SWING_IN;
+						//logState("DEBUG: tick.ask-range.median="+(tick.ask-range.median)+";tgt="+((tick.ask-range.median)*tf)+";target="+((tick.ask-range.median)*tf+tm));
+						
+						//double t=Math.Max((range.median-range.low)/4,0.25);
+						double t=0.25;
+						trade.target=(int)(Math.Round(tick.ask-range.median+t,0)*tf);
+						//if(tick.ask-trade.target/tf<=range.low)
+						//	trade.target=(int)(tick.ask-range.low)*tf-tm;
+						trade.target=2;//Math.Max(trade.target,tm);
+						trade.stop=(int)((range.high-tick.ask)*tf+tm+2);
+						enterShort(tick.ask);	
+						range.lastSwingInDir=-1;
+						logState("TRADE EVENT "+e);	
+					}
 					break;	
 				case TRADE_EVENT.EXIT_LONG_LONG_TRADE:
 				case TRADE_EVENT.EXIT_LONG:
 					
 				case TRADE_EVENT.STOP_LONG:
 					exitLongMarket();
+					logState("TRADE EVENT "+e);	
 					break;
 				case TRADE_EVENT.EXIT_LONG_SHORT_TRADE:
 				case TRADE_EVENT.EXIT_SHORT:
 					
 				case TRADE_EVENT.STOP_SHORT:
 					exitShortMarket();
+					logState("TRADE EVENT "+e);	
 					break;
 					
 			}
-			logState("TRADE EVENT END "+e);
 		}
 		protected  void tickDetector(){
 			int iTime=ToTime(Time[0]);
@@ -511,22 +473,22 @@ namespace NinjaTrader.Strategy
 				return;
 			}
 			if(range.active){
-				if(pos==0){
-					if(tick.bid>range.high+tm/tf){
+				if(pos==0/*&&(iTime<83000||iTime>100500)*/){
+					if(allowSwingOut&&tick.bid>range.high+tm/tf){
 						if(!range.breakout)
 							processTradeEvent(TRADE_EVENT.SWING_OUT_LONG);
 						range.breakout=true;
 					}
-					else if(tick.ask<range.low-tm/tf){
+					else if(allowSwingOut&&tick.ask<range.low-tm/tf){
 						if(!range.breakout)
 							processTradeEvent(TRADE_EVENT.SWING_OUT_SHORT);
 						range.breakout=true;
 					}
 					else
-					if(allowPreBounce&&tick.bid>range.median&&tick.ask<=range.high-tm/tf){
+					if(allowPreBounce&&tick.bid>range.median&&tick.ask<=range.median+0.25){
 						processTradeEvent(TRADE_EVENT.SWING_IN_SHORT);
 					}
-					else if(allowPreBounce&&tick.ask<range.median&&tick.bid>=range.low+tm/tf){
+					else if(allowPreBounce&&tick.ask<range.median&&tick.bid>=range.median-0.25){
 						processTradeEvent(TRADE_EVENT.SWING_IN_LONG);
 					}
 				}
@@ -866,11 +828,18 @@ namespace NinjaTrader.Strategy
         } 
 		[Description("Enables oscillating before the breakout")]
         [GridCategory("Parameters")]
-        public bool AllowPreBounce
+        public bool AllowSwingIn
         {
             get { return allowPreBounce; }
             set {  allowPreBounce= value; }
         } 
+		[Description("Enables oscillating before the breakout")]
+        [GridCategory("Parameters")]
+        public bool AllowSwingOut
+        {
+            get { return allowSwingOut; }
+            set {  allowSwingOut= value; }
+        }
 		
 		protected int OrderBarIndex
         {
