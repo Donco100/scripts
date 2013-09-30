@@ -182,6 +182,8 @@ namespace NinjaTrader.Strategy
 				return;*/
 			tick.bid=Closes[4][0];
 			tick.ask=Closes[5][0];
+			if(tick.bid>tick.ask)
+				return; // bad tick
 			tick.iTime=ToTime(Time[0]);
 
 			if(BarsInProgress==0){
@@ -260,8 +262,8 @@ namespace NinjaTrader.Strategy
 						bool touchedBottom=false;																// at least one bar in this half touched bottom
 											
 						for(int i=0;i<hrp;i++){
-							double top=Math.Max(Opens[2][i],Closes[2][i]);
-							double btm=Math.Min(Opens[3][i],Closes[3][i]);
+							double top=Math.Max(Opens[3][i],Closes[3][i]);
+							double btm=Math.Min(Opens[2][i],Closes[2][i]);
 							sbup+=top;       																	// high-end of the candle body
 							sbdn+=btm;       																	// low-end of the candle body
 							if(top>=mx&&btm<=rm)
@@ -282,8 +284,8 @@ namespace NinjaTrader.Strategy
 							touchedBottom=false;
 							
 							for(int i=hrp;i<r;i++){
-								double top=Math.Max(Opens[2][i],Closes[2][i]);
-								double btm=Math.Min(Opens[3][i],Closes[3][i]);
+								double top=Math.Max(Opens[3][i],Closes[3][i]);
+								double btm=Math.Min(Opens[2][i],Closes[2][i]);
 								sbup+=top;      		 														// high-end of the candle body
 								sbdn+=btm;       																// low-end of the candle body
 								if(top>=mx&&btm<=rm)
@@ -298,7 +300,7 @@ namespace NinjaTrader.Strategy
 							//averages:
 							abup=sbup/count;
 							abdn=sbdn/count;
-							if((abdn<rm&&abup>rm)){								// range detected
+							if((abdn<rm&&abup>rm)/*&&touchedTop&&touchedBottom*/){								// range detected
 								int er=(int)wr*4;
 								
 								if(nr*4<minRange||er>maxRange||nr>wr)
@@ -474,21 +476,21 @@ namespace NinjaTrader.Strategy
 			}
 			if(range.active){
 				if(pos==0/*&&(iTime<83000||iTime>100500)*/){
-					if(allowSwingOut&&tick.bid>range.high+tm/tf){
+					if(allowSwingOut&&tick.bid>range.high+tm/tf&&tick.bid<range.high+1){
 						if(!range.breakout)
 							processTradeEvent(TRADE_EVENT.SWING_OUT_LONG);
 						range.breakout=true;
 					}
-					else if(allowSwingOut&&tick.ask<range.low-tm/tf){
+					else if(allowSwingOut&&tick.ask<range.low-tm/tf&&tick.ask>range.low-1){
 						if(!range.breakout)
 							processTradeEvent(TRADE_EVENT.SWING_OUT_SHORT);
 						range.breakout=true;
 					}
 					else
-					if(allowPreBounce&&tick.bid>range.median&&tick.ask<=range.median+0.25){
+					if(allowPreBounce&&range.amplitude>5&&tick.bid>range.median&&tick.bid==(range.median+0.25)){
 						processTradeEvent(TRADE_EVENT.SWING_IN_SHORT);
 					}
-					else if(allowPreBounce&&tick.ask<range.median&&tick.bid>=range.median-0.25){
+					else if(allowPreBounce&&range.amplitude>5&&tick.ask<range.median&&tick.ask==(range.median-0.25)){
 						processTradeEvent(TRADE_EVENT.SWING_IN_LONG);
 					}
 				}
@@ -501,7 +503,7 @@ namespace NinjaTrader.Strategy
 				else if(tick.bid<=trade.entry-trade.stop/tf){
 					processTradeEvent(TRADE_EVENT.STOP_LONG);
 				}
-				else if(trade.type==TRADE_TYPE.SWING_OUT&&tick.ask<range.high-tm/tf&&tick.ask<trade.entry-2*tm/tf){
+				else if(trade.type==TRADE_TYPE.SWING_OUT&&tick.ask<range.high-tm/tf&&tick.ask<trade.entry-6*tm/tf){
 					log("SWING OUT BRAKE");
 					processTradeEvent(TRADE_EVENT.EXIT_LONG);
 				}
@@ -513,7 +515,7 @@ namespace NinjaTrader.Strategy
 				else if(tick.ask>=trade.entry+trade.stop/tf){
 					processTradeEvent(TRADE_EVENT.STOP_SHORT);
 				}
-				else if(trade.type==TRADE_TYPE.SWING_OUT&&tick.bid>range.low+tm/tf&&tick.bid>trade.entry+2*tm/tf){
+				else if(trade.type==TRADE_TYPE.SWING_OUT&&tick.bid>range.low+tm/tf&&tick.bid>trade.entry+6*tm/tf){
 					log("SWING OUT BRAKE");
 					processTradeEvent(TRADE_EVENT.EXIT_SHORT);
 				}
