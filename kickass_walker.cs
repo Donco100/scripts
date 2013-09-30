@@ -45,7 +45,7 @@ namespace NinjaTrader.Strategy
 	
     /// </summary>
     [Description("Texas Ranger")]
-    public class RangerWalker : Strategy
+    public class KickassWalker : Strategy
     {
 		#region Types
 		public struct Trade{
@@ -70,9 +70,6 @@ namespace NinjaTrader.Strategy
 			public bool breakout;
 			public int breakoutCount;
 			public int lastSwingInDir;
-			public bool touchTop;
-			public bool touchBottom;
-			
 		};
 
 		public struct Tick{
@@ -92,13 +89,9 @@ namespace NinjaTrader.Strategy
 		};
 		
 		
-		public enum RANGE_EVENT {DETECT,BREAKOUT,BREAKOUT_CLOSE,END};												//END is for unknown reason stop on loss happened
-		public enum TRADE_EVENT {EXIT_ON_EOD, 																		//EOD close
-			SWING_IN_SHORT,SWING_IN_LONG, SWING_OUT_LONG,SWING_OUT_SHORT,											//SWINGS
-			EXIT_LONG_LONG_TRADE,EXIT_LONG_SHORT_TRADE,EXIT_LONG,EXIT_SHORT,										//EXITS		
-			STOP_LONG,STOP_SHORT,																					//STOPS
-			LONG_ON_TOUCHCROSS,SHORT_ON_TOUCHCROSS};																//TOUCHCROSS entries		
-		public enum TRADE_TYPE {SWING_IN, SWING_OUT,TOUCHCROSS,KICKASS};
+		public enum RANGE_EVENT {DETECT,BREAKOUT,BREAKOUT_CLOSE,END};	//END is for unknown reason stop on loss happened
+		public enum TRADE_EVENT {EXIT_ON_EOD, SWING_IN_SHORT,SWING_IN_LONG, SWING_OUT_LONG,SWING_OUT_SHORT,EXIT_LONG_LONG_TRADE,EXIT_LONG_SHORT_TRADE,EXIT_LONG,EXIT_SHORT,STOP_LONG,STOP_SHORT};
+		public enum TRADE_TYPE {SWING_IN, SWING_OUT,KICKASS};
 		#endregion
 		
         #region Variables
@@ -114,14 +107,13 @@ namespace NinjaTrader.Strategy
 		private int 	minPeriod=3;
 		private double 	profitTarget=250;
 		private double 	stopLoss=400;
-		private int 	timeLimitTrade=18;
+		private int 	timeLimitTrade=12;
 		private string 	name=""; 
 		private int     tm=1;	
 		private bool    allowSwingOut=true;		
 		private bool 	allowPreBounce=false;
-		private bool    allowCrossTouch=false;
-		private bool	allowLongTradesKill=false;
-		private bool    allowKickass=true;
+		private bool	allowLongTradesKill=true;
+		private bool    allowKickass=false;
 		//how far past the line to go before event is triggered
 		
 		Trade 		trade		=	new Trade();
@@ -141,8 +133,7 @@ namespace NinjaTrader.Strategy
 		DateTime 	t;																								//current exchange time
 		string 		firstInstrumentSpec="";
 		int 		lineCount=0;																					//shift text lines on the chart so that they do not overlap
-		bool        up_v_trigger=false;
-		bool        down_v_trigger=false;
+		
 		
         #endregion
 		protected override void OnStartUp()
@@ -194,13 +185,22 @@ namespace NinjaTrader.Strategy
 				return;*/
 			tick.bid=Closes[4][0];
 			tick.ask=Closes[5][0];
-			if(tick.bid>tick.ask)
-				return; // bad tick
 			tick.iTime=ToTime(Time[0]);
 
 			if(BarsInProgress==0){
 				tick0(CurrentBar);																					//misc bar 0 processing
-				barDetector();
+				if(Historical&&!tradingLive){ // when backtesting to the trades
+					barDetector();
+				}
+				else if(!Historical&&tradingLive){
+					if(virgin){
+						virgin=false;
+						log("RESET VIRGIN");
+					}
+					tick.bid=GetCurrentBid(1);
+					tick.ask=GetCurrentAsk(1);
+					barDetector();
+				}
 			}
 			if(BarsInProgress==4||BarsInProgress==5||BarsInProgress==0){
 				if(Historical&&!tradingLive){ // when backtesting to the trades
@@ -274,8 +274,8 @@ namespace NinjaTrader.Strategy
 						bool touchedBottom=false;																// at least one bar in this half touched bottom
 											
 						for(int i=0;i<hrp;i++){
-							double top=Math.Max(Opens[3][i],Closes[3][i]);
-							double btm=Math.Min(Opens[2][i],Closes[2][i]);
+							double top=Math.Max(Opens[2][i],Closes[2][i]);
+							double btm=Math.Min(Opens[3][i],Closes[3][i]);
 							sbup+=top;       																	// high-end of the candle body
 							sbdn+=btm;       																	// low-end of the candle body
 							if(top>=mx&&btm<=rm)
@@ -296,8 +296,8 @@ namespace NinjaTrader.Strategy
 							touchedBottom=false;
 							
 							for(int i=hrp;i<r;i++){
-								double top=Math.Max(Opens[3][i],Closes[3][i]);
-								double btm=Math.Min(Opens[2][i],Closes[2][i]);
+								double top=Math.Max(Opens[2][i],Closes[2][i]);
+								double btm=Math.Min(Opens[3][i],Closes[3][i]);
 								sbup+=top;      		 														// high-end of the candle body
 								sbdn+=btm;       																// low-end of the candle body
 								if(top>=mx&&btm<=rm)
@@ -312,8 +312,8 @@ namespace NinjaTrader.Strategy
 							//averages:
 							abup=sbup/count;
 							abdn=sbdn/count;
-							if((abdn<rm&&abup>rm)/*&&touchedTop&&touchedBottom*/){								// range detected
-								int er=(int)(wr*4);
+							if((abdn<rm&&abup>rm)){								// range detected
+								double er=(wr*4);
 								
 								if(nr*4<minRange||er>maxRange||nr>wr)
 									continue;
@@ -322,10 +322,11 @@ namespace NinjaTrader.Strategy
 								int lastAsk=ToTime(Times[5][0]);
 								if((ToTime(Time[0])-lastBid<60)&&ToTime(Time[0])-lastAsk<60){					//gap less than 60 secs
 									//Starting a new range:
-									double tgt=(1.0/((double)er));//+2;;
+									double tgt=(1.0/(er));//+2;;
 									
 									tgt=(tgt*tgt*4*r*(wr-nr)*3+hrp);
-									tgt=Math.Round(tgt,0);
+									//tgt=Math.Round(tgt,0);
+									tgt=(int)tgt;
 									//tgt=5;
 									//log("proposed tgt="+tgt);
 									if(tgt>=2){
@@ -338,7 +339,7 @@ namespace NinjaTrader.Strategy
 										range.high=mxh;
 										range.low=mnh;
 										range.median=mnh+(mxh-mnh)/2;
-										range.amplitude=(int)((range.high-range.low)*4);
+										range.amplitude=(int)er;
 										range.breakoutTarget=Math.Round(tgt,0);
 										range.lastSwingInDir=0;
 										//preBounce=false;
@@ -347,8 +348,6 @@ namespace NinjaTrader.Strategy
 										range.period=r;
 										range.breakout=false;
 										range.breakoutCount=0;
-										range.touchTop=false;
-										range.touchBottom=false;
 										//logState("RANGE DETECTED");
 										/*log("START WATCH target="+target+";range="+enteredRange+";rangePeriod="
 											+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="
@@ -375,6 +374,13 @@ namespace NinjaTrader.Strategy
 				}
 			}
 			else if(range.active&&(tick.bid>range.high||tick.ask<range.low)){
+				if(range.breakout){
+					range.active=false;
+					processRangeEvent(RANGE_EVENT.BREAKOUT);
+				}
+			}
+			
+			else if(range.active&&(tick.bid>range.high||tick.ask<range.low)){
 				if(range.breakout||range.breakoutCount>2){
 					range.active=false;
 					processRangeEvent(RANGE_EVENT.BREAKOUT);
@@ -383,7 +389,8 @@ namespace NinjaTrader.Strategy
 					range.breakoutCount++;
 				}
 			}
-			if(allowLongTradesKill&&pos!=0&&bar-trade.enteredBar>timeLimitTrade){
+			
+			if(pos!=0&&bar-trade.enteredBar>timeLimitTrade){
 				logState("LONG TRADE DETECTED bar="+bar+";tradeBar="+trade.enteredBar);
 				if((pos>0&&tick.bid>trade.entry)||(pos<0&&tick.ask<trade.entry)){
 					//log("POSITIVE OUT");
@@ -392,28 +399,8 @@ namespace NinjaTrader.Strategy
 					else
 						processTradeEvent(TRADE_EVENT.EXIT_LONG_SHORT_TRADE);
 				}
-				else{
-					if(trade.type==TRADE_TYPE.KICKASS){
-						//log("POSITIVE OUT");
-						if(pos>0)
-							processTradeEvent(TRADE_EVENT.EXIT_LONG_LONG_TRADE);
-						else
-							processTradeEvent(TRADE_EVENT.EXIT_LONG_SHORT_TRADE);
-					}
-				}
 			}
-			if(range.active&&Lows[2][0]<=range.low){
-				range.touchBottom=true;
-			}
-			else{
-				range.touchBottom=false;
-			}
-			if(range.active&&Highs[3][0]>=range.high){
-				range.touchTop=true;
-			}
-			else{
-				range.touchTop=false;
-			}
+			
 			if(pos==0&&allowKickass){
 				double prevCandleHeight=High[1]-Low[1];
 				double down_tip=High[1]-prevCandleHeight/4;
@@ -451,6 +438,7 @@ namespace NinjaTrader.Strategy
 					logState("ENTER SHORT KIKASS");
 				}
 			}
+			
 		}
 		protected  void processRangeEvent(RANGE_EVENT e){
 		logState("RANGE EVENT "+e);
@@ -462,7 +450,6 @@ namespace NinjaTrader.Strategy
 		protected  void processTradeEvent(TRADE_EVENT e){
 		
 		switch(e){
-				
 				case TRADE_EVENT.EXIT_ON_EOD:
 					if(getPos()>0)
 						exitLongMarket();
@@ -470,27 +457,11 @@ namespace NinjaTrader.Strategy
 						exitShortMarket();
 					logState("TRADE EVENT "+e);	
 					break;
-				case TRADE_EVENT.LONG_ON_TOUCHCROSS:
-					trade.type=TRADE_TYPE.TOUCHCROSS;
-					trade.target=3;
-					trade.stop=range.amplitude;
-					enterLong(tick.ask);
-					//enterLong(tick.bid);
-					logState("TRADE EVENT "+e);	
-					break;
 				case TRADE_EVENT.SWING_OUT_LONG:
 					trade.type=TRADE_TYPE.SWING_OUT;
 					trade.target=range.breakoutTarget;
 					trade.stop=(tick.ask-range.low)*tf+tm*2;
 					enterLongMarket();
-					//enterLong(tick.bid);
-					logState("TRADE EVENT "+e);	
-					break;
-				case TRADE_EVENT.SHORT_ON_TOUCHCROSS:
-					trade.type=TRADE_TYPE.TOUCHCROSS;
-					trade.target=3;
-					trade.stop=range.amplitude;
-					enterShort(tick.bid);
 					//enterLong(tick.bid);
 					logState("TRADE EVENT "+e);	
 					break;
@@ -568,21 +539,21 @@ namespace NinjaTrader.Strategy
 			}
 			if(range.active){
 				if(pos==0/*&&(iTime<83000||iTime>100500)*/){
-					if(allowSwingOut&&tick.bid>range.high+tm/tf&&tick.bid<range.high+1){
+					if(allowSwingOut&&tick.bid>range.high+tm/tf){
 						if(!range.breakout)
 							processTradeEvent(TRADE_EVENT.SWING_OUT_LONG);
 						range.breakout=true;
 					}
-					else if(allowSwingOut&&tick.ask<range.low-tm/tf&&tick.ask>range.low-1){
+					else if(allowSwingOut&&tick.ask<range.low-tm/tf){
 						if(!range.breakout)
 							processTradeEvent(TRADE_EVENT.SWING_OUT_SHORT);
 						range.breakout=true;
 					}
 					else
-					if(allowPreBounce&&range.amplitude>5&&tick.bid>range.median&&tick.bid==(range.median+0.25)){
+					if(allowPreBounce&&tick.bid>range.median&&tick.ask<=range.median+0.25){
 						processTradeEvent(TRADE_EVENT.SWING_IN_SHORT);
 					}
-					else if(allowPreBounce&&range.amplitude>5&&tick.ask<range.median&&tick.ask==(range.median-0.25)){
+					else if(allowPreBounce&&tick.ask<range.median&&tick.bid>=range.median-0.25){
 						processTradeEvent(TRADE_EVENT.SWING_IN_LONG);
 					}
 				}
@@ -595,7 +566,7 @@ namespace NinjaTrader.Strategy
 				else if(tick.bid<=trade.entry-trade.stop/tf){
 					processTradeEvent(TRADE_EVENT.STOP_LONG);
 				}
-				else if(trade.type==TRADE_TYPE.SWING_OUT&&tick.ask<range.high-tm/tf&&tick.ask<trade.entry-6*tm/tf){
+				else if(trade.type==TRADE_TYPE.SWING_OUT&&tick.ask<range.high-tm/tf&&tick.ask<trade.entry-2*tm/tf){
 					log("SWING OUT BRAKE");
 					processTradeEvent(TRADE_EVENT.EXIT_LONG);
 				}
@@ -607,27 +578,9 @@ namespace NinjaTrader.Strategy
 				else if(tick.ask>=trade.entry+trade.stop/tf){
 					processTradeEvent(TRADE_EVENT.STOP_SHORT);
 				}
-				else if(trade.type==TRADE_TYPE.SWING_OUT&&tick.bid>range.low+tm/tf&&tick.bid>trade.entry+6*tm/tf){
+				else if(trade.type==TRADE_TYPE.SWING_OUT&&tick.bid>range.low+tm/tf&&tick.bid>trade.entry+2*tm/tf){
 					log("SWING OUT BRAKE");
 					processTradeEvent(TRADE_EVENT.EXIT_SHORT);
-				}
-			}
-			if(allowCrossTouch&&pos==0){
-				if(range.active&&range.touchBottom){
-					
-					if(tick.bid>=range.high){
-						processTradeEvent(TRADE_EVENT.LONG_ON_TOUCHCROSS);
-						range.touchTop=false;
-					}
-				}
-				else if(range.active&&range.touchTop){
-					if(tick.ask<=range.low){
-						processTradeEvent(TRADE_EVENT.SHORT_ON_TOUCHCROSS);
-						range.touchTop=false;
-					}
-					else{
-						
-					}			
 				}
 			}
 		}
@@ -951,13 +904,6 @@ namespace NinjaTrader.Strategy
         {
             get { return allowSwingOut; }
             set {  allowSwingOut= value; }
-        }
-		[Description("Enables touchcross indicator")]
-        [GridCategory("Parameters")]
-        public bool AllowCrossTouch
-        {
-            get { return allowCrossTouch; }
-            set {  allowCrossTouch= value; }
         }
 		[Description("Enables terminating long trades")]
         [GridCategory("Parameters")]
