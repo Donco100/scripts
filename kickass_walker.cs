@@ -404,14 +404,41 @@ namespace NinjaTrader.Strategy
 				double prevCandleBottom=Math.Min(Open[1],Close[1]);
 				double prevCandleTop=Math.Max(Open[1],Close[1]);
 				double prevCandleBody=prevCandleTop-prevCandleBottom;
-				double body_up_tip=prevCandleBottom+prevCandleBody/4;
-				double body_down_tip=prevCandleTop-prevCandleBody/4;
+				double body_up_tip=prevCandleBottom+prevCandleBody/3;
+				double body_down_tip=prevCandleTop-prevCandleBody/3;
+				int prevCandleDir;
+				int candleDir;
+				if(Open[1]>Close[1])
+					prevCandleDir=-1;
+				else
+					prevCandleDir=1;
+				
+				if(Open[0]>Close[0])
+					candleDir=-1;
+				else
+					candleDir=1;
 				
 				if(tradingLive){
-					logState("HEARTBEAT: prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
+					logState("HEARTBEAT: prevCandleDir="+prevCandleDir+";candleDir="+candleDir+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
 				}
-				log("DEBUG candleHeight="+candleHeight+";prevCandleBody="+prevCandleBody+";body_up_tip="+body_up_tip+";body_down_tip="+body_down_tip+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
-				if(candleHeight>=1.0&&prevCandleHeight>=2.0&&down_tip<=Math.Min(MIN(Opens[0],6)[2],MIN(Closes[0],6)[2])&&Close[0]>=down_tip&&Close[0]>=body_down_tip){
+				log("DEBUG prevCandleDir="+prevCandleDir+";candleDir="+candleDir+";candleHeight="+candleHeight+";prevCandleBody="+prevCandleBody+";prevCandleTop="+prevCandleTop+";prevCandleBottom="+prevCandleBottom+";body_up_tip="+body_up_tip+";body_down_tip="+body_down_tip+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
+				
+				bool bPrevdirRed=prevCandleDir==-1;
+				bool bMydirGreen=candleDir==1;
+				bool bPrevdirGreen=prevCandleDir==1;
+				bool bMydirRed=candleDir==-1;
+				bool bCandleHeight=candleHeight>=1.0;
+				bool bPrevCanldeHeight=prevCandleHeight>=2.0;
+				bool bPrevCandlesAboveTheBodyDownTip=body_down_tip<=Math.Min(MIN(Opens[0],6)[2],MIN(Closes[0],6)[2]);
+				bool bPrevCandlesBelowTheBodyUpTip=body_up_tip>=Math.Max(MAX(Opens[0],6)[2],MAX(Closes[0],6)[2]);
+				bool bCloseAboveDownTip=Close[0]>=down_tip;
+				bool bCloseBelowUpTip=Close[0]<=up_tip;
+				bool bCloseAboveBodyDownTip=Close[0]>=body_down_tip;
+				bool bCloseBelowBodyUpTip=Close[0]<=body_up_tip;
+				string conds="bPrevdirRed="+bPrevdirRed+";bMydirGreen="+bMydirGreen+";bCandleHeight="+bCandleHeight+";bPrevCanldeHeight="+bPrevCanldeHeight+";bPrevCandlesAboveTheBodyDownTip="+bPrevCandlesAboveTheBodyDownTip+
+				";bPrevCandlesBelowTheBodyUpTip="+bPrevCandlesBelowTheBodyUpTip+";bCloseAboveDownTip="+bCloseAboveDownTip+";bCloseBelowUpTip="+bCloseBelowUpTip+";bCloseAboveBodyDownTip="+bCloseAboveBodyDownTip+";bCloseBelowBodyUpTip="+bCloseBelowBodyUpTip+";bCloseBelowBodyUpTip="+bCloseBelowBodyUpTip;
+				log("DEBUG CONDS:" +conds);
+				if(bPrevdirRed&&bMydirGreen&&bCandleHeight&&bPrevCanldeHeight&&bPrevCandlesAboveTheBodyDownTip&&bCloseAboveDownTip&&bCloseAboveBodyDownTip){
 					trade.type=TRADE_TYPE.KICKASS;
 					//trade.target=Math.Round(prevCandleHeight*4*4);
 					//trade.stop=Math.Round(prevCandleHeight*4*3);
@@ -428,7 +455,7 @@ namespace NinjaTrader.Strategy
 					logState("ENTER LONG KIKASS");
 					//DrawDiamond("ka"+CurrentBars[0],true,0,tick.bid-45,Color.Green);
 				}
-				if(candleHeight>=1.0&&prevCandleHeight>=2.0&&up_tip>=Math.Max(MAX(Opens[0],6)[2],MAX(Closes[0],6)[2])&&Close[0]<=up_tip&&Close[0]>=body_up_tip){
+				if(bPrevdirGreen&&bMydirRed&&bCandleHeight&&bPrevCanldeHeight&&bPrevCandlesBelowTheBodyUpTip&&bCloseBelowUpTip&&bCloseBelowBodyUpTip){
 					trade.type=TRADE_TYPE.KICKASS;
 					//trade.target=Math.Round(prevCandleHeight*4*4);
 					//trade.stop=Math.Round(prevCandleHeight*4*3);
