@@ -56,6 +56,7 @@ namespace NinjaTrader.Strategy
 			public int enteredBar;
 			public string type;
 			public string signal;
+			public int dir;
 		
 		};
 		
@@ -92,20 +93,22 @@ namespace NinjaTrader.Strategy
 		
 		protected Trade 		trade			=	new Trade();
 		protected Execution 	ex				=	new Execution();
-		protected int 		bar				=	0;	
-		protected Tick		tick			=	new Tick();
-		protected int 		currentBar		=	0;
-		protected double 		gainTotal		=	0.0;																		//gain accumulator
-		protected int 		iStartTime		=	20000;
-		protected int 		iLastEntryTime	=153000;
-		protected int 		iExitOnCloseTime=155800;
-		protected int 		iRestartTime	=181500;
-		protected double		tf				=4;																				//tick fraction - how many ticks per point; 4 for QM, 1 for YM
-		protected DateTime 	t;																								//current exchange time
-		protected int 		lineCount		=0;																				//shift text lines on the chart so that they do not overlap
+		protected int 			bar				=	0;	
+		protected Tick			tick			=	new Tick();
+		protected int 			currentBar		=	0;
+		protected double 		gainTotal		=	0.0;															//gain accumulator
+		protected int 			iStartTime		=	20000;
+		protected int 			iLastEntryTime	=	153000;
+		protected int 			iExitOnCloseTime=	155800;
+		protected int 			iRestartTime	=	181500;
+		protected double		tf				=	4;																//tick fraction - how many ticks per point; 4 for QM, 1 for YM
+		protected DateTime 		t;																					//current exchange time
+		protected int 			lineCount		=	0;																//shift text lines on the chart so that they do not overlap
 		
         #endregion
+		protected abstract void start();
 		protected override void OnStartUp(){
+			start()
 			initLog();
 			log("START "+strategyName);
 			
@@ -390,28 +393,26 @@ namespace NinjaTrader.Strategy
 		}
 		protected void logState(string line){
 			string state=" :: BASE state TICK:bid="+tick.bid+";ask="+tick.ask+"  TRADE:target="+trade.target+";stop="+trade.stop+";type="+trade.type+"; POS="+getPos();
-			log(line+state+"\n"+dumpState());
+			log(line+state+" "+dumpState());
 		}		
 		protected void log(string line){
 			string n="output";
 			if(tradingLive)
 				n=strategyName+"_live";
-			using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\Public\Logs\"+n+".log", true))
-			{
-				string ss="";
-				if(tradingLive)
-					ss="\n";
-				file.WriteLine(ss+t.ToString("MM-dd HH:mm:ss")+":"+line);
-			}
+				using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\Public\Logs\"+n+".log", true)){
+					string ss="";
+					if(tradingLive)
+						ss="\n";
+					file.WriteLine(ss+t.ToString("MM-dd HH:mm:ss")+":"+line);
+				}
 		}
 		protected void heartbeat(){
 			string n="output";
 			if(tradingLive){
 				n=strategyName+"_live";
-			using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\Public\Logs\"+n+".log", true))
-			{
-				file.Write(".");
-			}
+				using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\Public\Logs\"+n+".log", true)){
+					file.Write(".");
+				}
 			}
 		}
 

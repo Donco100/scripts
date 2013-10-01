@@ -63,15 +63,29 @@ namespace NinjaTrader.Strategy
 			public int breakoutCount;
 			public int lastSwingInDir;
 		};
-
+		public struct Candle{
+			public double high;
+			public double low;
+			public int height;
+			public int body;
+			public int hair;
+			public int beard;
+			public int dir;
+			public double bottom;
+			public double top;
+			public double topQuarter;
+			public double bottomQuarter;
+			public double topBodyQuarter;
+			public double bottomBodyQuarter;
+		}
 		public enum RANGE_EVENT {DETECT,BREAKOUT,BREAKOUT_CLOSE,END};	//END is for unknown reason stop on loss happened
-		public enum TRADE_EVENT {EXIT_ON_EOD, SWING_IN_SHORT,SWING_IN_LONG, SWING_OUT_LONG,SWING_OUT_SHORT,EXIT_LONG_LONG_TRADE,EXIT_LONG_SHORT_TRADE,EXIT_LONG,EXIT_SHORT,STOP_LONG,STOP_SHORT};
+		public enum TRADE_EVENT {EXIT_ON_EOD, SWING_IN_SHORT,SWING_IN_LONG, SWING_OUT_LONG,SWING_OUT_SHORT,EXIT_LONG_LONG_TRADE,EXIT_LONG_SHORT_TRADE,EXIT_LONG,EXIT_SHORT,STOP_LONG,STOP_SHORT,KICKASS_LONG,KICKASS_SHORT};
 		public enum TRADE_TYPE {SWING_IN, SWING_OUT,KICKASS};
 		#endregion
 		
         #region Variables
         //properties
-		private string 	strategyName="RangerWalker";  //Default setting for Name
+		
 		private double 	maxRange=10;
 		private double 	minRange=4;
 		private int 	maxPeriod=18;
@@ -84,7 +98,9 @@ namespace NinjaTrader.Strategy
 		private bool    allowKickass=false;
 		bool 		virgin		=	true;																			//detects first live tick to reset any existing ranges
 		Range		range		=	new Range();
-		#endregion				
+		Candle[]    candles		=	new Candle[3];
+		#endregion			
+		protected override void start(){}		
 		protected  override void barDetector(){	
 			if(!Historical){
 				if(virgin){
@@ -93,16 +109,13 @@ namespace NinjaTrader.Strategy
 					log("RESET VIRGIN");
 				}
 			}
+			logState("barDetector");
 			int iTime=ToTime(Time[0]);	
 			
 			if((iTime>=iLastEntryTime&&iTime<iRestartTime)){													// detect regular trading pause TODO: get trading hours from the exchange to support short days
 				range.active=false;
 				return;
 			}
-			//saw some weird bar repetitions. This is a better safe and than sorry check:
-			if(CurrentBar==currentBar)
-				return;
-			currentBar=CurrentBar;
 			
 			#region Range Chart Drawing
 			if(range.active){																					// delayed drawing of the range lines on a 5min tick
@@ -123,7 +136,7 @@ namespace NinjaTrader.Strategy
 			
 			if(bar>maxPeriod&&!range.active){
 				//range detection
-				
+				log("R");
 				int r=maxPeriod+1;
 				while(r>minPeriod){
 					r--;
@@ -244,7 +257,7 @@ namespace NinjaTrader.Strategy
 								}
 							}
 						}
-					}
+					}									
 				}
 			}
 			
@@ -268,91 +281,135 @@ namespace NinjaTrader.Strategy
 						processTradeEvent(TRADE_EVENT.EXIT_LONG_SHORT_TRADE);
 				}
 			}
-			
 			if(pos==0&&allowKickass){
-				double prevCandleHeight=High[1]-Low[1];
-				double down_tip=High[1]-prevCandleHeight/4;
-				double up_tip=Low[1]+prevCandleHeight/4;
-				double candleHeight=High[0]-Low[0];
-				double prevCandleBottom=Math.Min(Open[1],Close[1]);
-				double prevCandleTop=Math.Max(Open[1],Close[1]);
-				double prevCandleBody=prevCandleTop-prevCandleBottom;
-				double body_up_tip=prevCandleBottom+prevCandleBody/3;
-				double body_down_tip=prevCandleTop-prevCandleBody/3;
-				int prevCandleDir;
-				int candleDir;
-				if(Open[1]>Close[1])
-					prevCandleDir=-1;
-				else
-					prevCandleDir=1;
-				
-				if(Open[0]>Close[0])
-					candleDir=-1;
-				else
-					candleDir=1;
-				
-				if(TradingLive){
-					logState("HEARTBEAT: prevCandleDir="+prevCandleDir+";candleDir="+candleDir+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
-				}
-				//log("DEBUG prevCandleDir="+prevCandleDir+";candleDir="+candleDir+";candleHeight="+candleHeight+";prevCandleBody="+prevCandleBody+";prevCandleTop="+prevCandleTop+";prevCandleBottom="+prevCandleBottom+";body_up_tip="+body_up_tip+";body_down_tip="+body_down_tip+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
-				
-				bool bPrevdirRed=prevCandleDir==-1;
-				bool bMydirGreen=candleDir==1;
-				bool bPrevdirGreen=prevCandleDir==1;
-				bool bMydirRed=candleDir==-1;
-				bool bCandleHeight=candleHeight>=1.0;
-				bool bPrevCanldeHeight=prevCandleHeight>=1.75;
-				bool bPrevCandlesAboveTheBodyDownTip=body_down_tip<=Math.Min(MIN(Opens[0],6)[2],MIN(Closes[0],6)[2]);
-				bool bPrevCandlesBelowTheBodyUpTip=body_up_tip>=Math.Max(MAX(Opens[0],6)[2],MAX(Closes[0],6)[2]);
-				bool bCloseAboveDownTip=Close[0]>=down_tip;
-				bool bCloseBelowUpTip=Close[0]<=up_tip;
-				bool bCloseAboveBodyDownTip=Close[0]>=body_down_tip;
-				bool bCloseBelowBodyUpTip=Close[0]<=body_up_tip;
-				bool bCloseAbovePrevBody=Close[0]>=prevCandleTop;
-				bool bCloseBelowPrevBody=Close[0]<=prevCandleBottom;
-				bool bNoHair=High[0]-Close[0]<0.5;
-				bool bNoBeard=Close[0]-Low[0]<0.5;
-				string conds="bPrevdirRed="+bPrevdirRed+";bMydirGreen="+bMydirGreen+";bCandleHeight="+bCandleHeight+";bPrevCanldeHeight="+bPrevCanldeHeight+";bPrevCandlesAboveTheBodyDownTip="+bPrevCandlesAboveTheBodyDownTip+
-				";bPrevCandlesBelowTheBodyUpTip="+bPrevCandlesBelowTheBodyUpTip+";bCloseAboveDownTip="+bCloseAboveDownTip+";bCloseBelowUpTip="+bCloseBelowUpTip+";bCloseAboveBodyDownTip="+bCloseAboveBodyDownTip+";bCloseBelowBodyUpTip="+bCloseBelowBodyUpTip+";bCloseBelowBodyUpTip="+bCloseBelowBodyUpTip;
-				//log("DEBUG CONDS:" +conds);
-				if(bCloseAbovePrevBody&&bNoHair&&bPrevdirRed&&bMydirGreen&&bCandleHeight&&bPrevCanldeHeight&&bPrevCandlesAboveTheBodyDownTip&&bCloseAboveDownTip&&bCloseAboveBodyDownTip){
-					trade.type="KICKASS";
-					//trade.target=Math.Round(prevCandleHeight*4*4);
-					//trade.stop=Math.Round(prevCandleHeight*4*3);
-					if(prevCandleHeight>3){
-						trade.target=12;
-						trade.stop=12;
-					}
-					else{
-						trade.target=4;
-						trade.stop=10;
-					}
-					trade.signal="LongKickass";
-					enterLong(tick.ask);
-					logState("ENTER LONG KIKASS");
-					//DrawDiamond("ka"+CurrentBars[0],true,0,tick.bid-45,Color.Green);
-				}
-				if(bCloseBelowPrevBody&&bNoBeard&&bPrevdirGreen&&bMydirRed&&bCandleHeight&&bPrevCanldeHeight&&bPrevCandlesBelowTheBodyUpTip&&bCloseBelowUpTip&&bCloseBelowBodyUpTip){
-					trade.type="KICKASS";
-					//trade.target=Math.Round(prevCandleHeight*4*4);
-					//trade.stop=Math.Round(prevCandleHeight*4*3);
-					
-					if(prevCandleHeight>3){
-						trade.target=12;
-						trade.stop=12;
-					}
-					else{
-						trade.target=4;
-						trade.stop=10;
-					}
-					trade.signal="ShortKickass";
-					enterShort(tick.bid);
-					logState("ENTER SHORT KIKASS");
-					//DrawDiamond("ka"+CurrentBars[0],true,0,tick.ask+4,Color.Red);
+				loadCandlesticks();
+				if(shpalaDownUp())
+					processTradeEvent(TRADE_EVENT.KICKASS_LONG);
+				else if(shpalaUpDown())
+					processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
+			}
+		}
+		//This method measures and deconstructs last three candles to be used by kickass indicators
+		protected void loadCandlesticks(){
+			for(int i=0;i<3;i++){
+				candles[i]=new Candle();
+				candles[i].high=Highs[3][i];																		//based on asks
+				candles[i].low=Lows[2][i];																			//based on bids	
+				candles[i].height=(int)((candles[i].high-candles[i].low)*tf);
+				candles[i].top=Math.Max(Opens[3][i],Closes[3][i]);
+				candles[i].bottom=Math.Min(Opens[2][i],Closes[2][i]);
+				candles[i].body=(int)((candles[i].top-candles[i].bottom)*tf);
+				candles[i].hair=(int)((candles[i].high=candles[i].top)*tf);
+				candles[i].beard=(int)((candles[i].bottom-candles[i].low)*tf);
+				if(Opens[2][i]>Closes[2][i])
+					candles[i].dir=-1;
+				else	
+					candles[i].dir=-1;
+				double quarter=(candles[i].height/4)/tf;
+				double bodyQuarter=(candles[i].body/4)/tf;
+				candles[i].topQuarter=candles[i].high-quarter;
+				candles[i].bottomQuarter=candles[i].low+quarter;
+				candles[i].topBodyQuarter=candles[i].top-bodyQuarter;
+				candles[i].bottomBodyQuarter=candles[i].bottom+bodyQuarter;
+			}
+		}
+		protected string dumpCandlesticks(){
+			string output="";
+			for(int i=0;i<3;i++){
+				output+="CANDLE["+i+"]: high="+candles[i].high+";low="+candles[i].low+";height="+candles[i].height+";top="+candles[i].top+
+					";bottom="+candles[i].bottom+";body="+candles[i].body+";hair="+candles[i].hair+";beard="+candles[i].beard+";dir="+candles[i].dir+
+					";topQuarter="+candles[i].topQuarter+";bottomQuarter="+candles[i].bottomQuarter+";topBodyQuarter="+candles[i].topBodyQuarter+
+					";bottomBodyQuarter="+candles[i].bottomBodyQuarter+"\n";
+			}
+			return output;
+		}
+	
+		protected string dumpConditions(Dictionary<string, bool> conds ){
+			string output="CONDS:";
+			foreach (KeyValuePair<string, bool> pair in conds){
+				output+=pair.Key+","+pair.Value+";";
+			}
+			return output;
+		}
+		protected bool evalConditions(String pattern,Dictionary<string, bool> conds ){
+			string output="CONDS:";
+			foreach (KeyValuePair<string, bool> pair in conds){
+				if(!pair.Value){
+					log(pattern+" COND FAILED:"+pair.Key);
+					return false;
 				}
 			}
-			
+			return true;
 		}
+		protected bool shpalyDownUp(){
+			const int PRE_PERIOD=6;																					//sticks
+			const int FIRST_STICK_HEIGHT=7;																			//ticks
+			const int SECOND_STICK_HEIGHT=4;																		//ticks
+			const int FIRST_HAIRCUT=1;																				//ticks
+			const int SECOND_HAIRCUT=2;																				//ticks
+			
+			if(TradingLive){
+				logState("HEARTBEAT: prevCandleDir="+prevCandleDir+";candleDir="+candleDir+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
+			}
+			//log("DEBUG prevCandleDir="+prevCandleDir+";candleDir="+candleDir+";candleHeight="+candleHeight+";prevCandleBody="+prevCandleBody+";prevCandleTop="+prevCandleTop+";prevCandleBottom="+prevCandleBottom+";body_up_tip="+body_up_tip+";body_down_tip="+body_down_tip+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
+			Dictionary<string, bool> conds =new Dictionary<string, bool>();
+			conds.Add("FirstRed",candles[1].dir==-1);
+			conds.Add("SecondGreen",candles[0].dir==1);
+			conds.Add("FirstHeight",candles[1].height>=FIRST_STICK_HEIGHT);
+			conds.Add("SecondHeight",candles[0].height>=SECOND_STICK_HEIGHT);
+			conds.Add("StickingDown",candles[1].topBodyQuarter<=Math.Min(MIN(Opens[2],PRE_PERIOD)[2],MIN(Closes[2],PRE_PERIOD)[2]);
+			conds.Add("SecondCloseGTEQFirstBodyTop",candles[0].top>=candles[1].topBodyQuarter);
+			conds.Add("FirstHaircut",candles[1].hair<=FIRST_HAIRCUT);
+			conds.Add("SecondHaircut",candles[0].hair<=SECOND_HAIRCUT);
+			logState(dumpCandlesticks+"\n"+dumpConditions(conds));
+			if(evalConditions("ShpalyDownUp",conds)){
+				if(candles[1].height>=12){
+					trade.target=12;
+					trade.stop=12;
+				}
+				else {
+					trade.target=4;
+					trade.stop=12;
+				}
+				trade.signal="kickass shpaly downup";
+				return true;
+				
+			}
+			return false;
+		}
+		protected bool shpalyUpDown(){
+			const int PRE_PERIOD=6;																					//sticks
+			const int FIRST_STICK_HEIGHT=7;																			//ticks
+			const int SECOND_STICK_HEIGHT=4;																		//ticks
+			const int FIRST_BEARD=1;																				//ticks
+			const int SECOND_BEARD=2;																				//ticks
+			
+			//log("DEBUG prevCandleDir="+prevCandleDir+";candleDir="+candleDir+";candleHeight="+candleHeight+";prevCandleBody="+prevCandleBody+";prevCandleTop="+prevCandleTop+";prevCandleBottom="+prevCandleBottom+";body_up_tip="+body_up_tip+";body_down_tip="+body_down_tip+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
+			Dictionary<string, bool> conds =new Dictionary<string, bool>();
+			conds.Add("FirstGreen",candles[1].dir==1);
+			conds.Add("SecondRed",candles[0].dir==-1);
+			conds.Add("FirstHeight",candles[1].height>=FIRST_STICK_HEIGHT);
+			conds.Add("SecondHeight",candles[0].height>=SECOND_STICK_HEIGHT);
+			conds.Add("StickingUp",candles[1].bottomBodyQuarter>=Math.Max(MAX(Opens[3],PRE_PERIOD)[2],MAX(Closes[3],PRE_PERIOD)[2]);
+			conds.Add("SecondCloseLTEQFirstBodyBottom",candles[0].bottom<=candles[1].bottomBodyQuarter);
+			conds.Add("FirstBeard",candles[1].beard<=FIRST_BEARD);
+			conds.Add("SecondBeard",candles[0].beard<=SECOND_BEARD);
+			logState(dumpCandlesticks+"\n"+dumpConditions(conds));
+			if(evalConditions("ShpalyUpDown",conds)){
+				if(candles[1].height>=12){
+					trade.target=12;
+					trade.stop=12;
+				}
+				else {
+					trade.target=4;
+					trade.stop=12;
+				}
+				trade.signal="kickass shpaly dupdown";
+				return true;
+			}
+			return false;
+		}
+		
 		protected  void processRangeEvent(RANGE_EVENT e){
 		logState("RANGE EVENT "+e);
 			/*switch(e){
@@ -363,6 +420,16 @@ namespace NinjaTrader.Strategy
 		protected  void processTradeEvent(TRADE_EVENT e){
 		
 		switch(e){
+				case TRADE_EVENT.KICKASS_LONG:
+					trade.type="KICKASS";
+					enterLongMarket();
+					logState("TRADE EVENT "+e);	
+					break;
+				case TRADE_EVENT.KICKASS_SHORT:
+					trade.type="KICKASS";
+					enterShortarket();
+					logState("TRADE EVENT "+e);	
+					break;	
 				case TRADE_EVENT.EXIT_ON_EOD:
 					if(getPos()>0)
 						exitLongMarket();
