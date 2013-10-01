@@ -81,6 +81,7 @@ namespace NinjaTrader.Strategy
 		public struct Execution{
 			public IOrder entryOrder;
 			public IOrder exitOrder;
+			public IOrder stopOrder;
 			public string orderID;
 			public int  pendingBar;
 			public bool pendingLongEntry;
@@ -128,7 +129,7 @@ namespace NinjaTrader.Strategy
 		int 		iStartTime=20000;
 		int 		iLastEntryTime=153000;
 		int 		iExitOnCloseTime=155800;
-		int 		iRestartTime=180000;
+		int 		iRestartTime=181500;
 		double		tf=4;																							//tick fraction - how many ticks per point; 4 for QM, 1 for YM
 	
 		DateTime 	t;																								//current exchange time
@@ -166,7 +167,7 @@ namespace NinjaTrader.Strategy
 		
 			name=strategyName;
 		
-			SetStopLoss(stopLoss);
+			//SetStopLoss(stopLoss);
 			/*
 			SetTrailStop(stopLoss);
 			SetProfitTarget(profitTarget);
@@ -177,44 +178,42 @@ namespace NinjaTrader.Strategy
 		/// Called on each bar update event (incoming tick)
 		/// </summary>
 		protected override void OnBarUpdate(){
-		
-			
-						
+
 			t=Times[1][0];																							//set time for logging
-			
-			/*if(tick.bid==Closes[4][0]&&tick.ask==Closes[5][0]&&(BarsInProgress==4||BarsInProgress==5))
-				return;*/
+
 			tick.bid=Closes[4][0];
 			tick.ask=Closes[5][0];
 			tick.iTime=ToTime(Time[0]);
 
 			if(BarsInProgress==0){
 				tick0(CurrentBar);																					//misc bar 0 processing
-				if(Historical&&!tradingLive){ // when backtesting to the trades
-					barDetector();
-				}
-				else if(!Historical&&tradingLive){
+				
+				if(!Historical&&tradingLive){
 					if(virgin){
 						virgin=false;
+						range.active=false;
 						log("RESET VIRGIN");
 					}
 					tick.bid=GetCurrentBid(1);
 					tick.ask=GetCurrentAsk(1);
-					barDetector();
+					
 				}
+				barDetector();
 			}
 			if(BarsInProgress==4||BarsInProgress==5||BarsInProgress==0){
-				if(Historical&&!tradingLive){ // when backtesting to the trades
+				if(Historical){ // when backtesting to the trades
 					tickDetector();
 				}
-				else if(!Historical&&tradingLive){
+				else if(!Historical){
 					if(virgin){
 						virgin=false;
+						range.active=false;
 						log("RESET VIRGIN");
 					}
 					tick.bid=GetCurrentBid(1);
 					tick.ask=GetCurrentAsk(1);
 					tickDetector();
+					//heartbeat();
 				}
 			}
 		}
@@ -421,24 +420,28 @@ namespace NinjaTrader.Strategy
 				if(tradingLive){
 					logState("HEARTBEAT: prevCandleDir="+prevCandleDir+";candleDir="+candleDir+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
 				}
-				log("DEBUG prevCandleDir="+prevCandleDir+";candleDir="+candleDir+";candleHeight="+candleHeight+";prevCandleBody="+prevCandleBody+";prevCandleTop="+prevCandleTop+";prevCandleBottom="+prevCandleBottom+";body_up_tip="+body_up_tip+";body_down_tip="+body_down_tip+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
+				//log("DEBUG prevCandleDir="+prevCandleDir+";candleDir="+candleDir+";candleHeight="+candleHeight+";prevCandleBody="+prevCandleBody+";prevCandleTop="+prevCandleTop+";prevCandleBottom="+prevCandleBottom+";body_up_tip="+body_up_tip+";body_down_tip="+body_down_tip+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
 				
 				bool bPrevdirRed=prevCandleDir==-1;
 				bool bMydirGreen=candleDir==1;
 				bool bPrevdirGreen=prevCandleDir==1;
 				bool bMydirRed=candleDir==-1;
 				bool bCandleHeight=candleHeight>=1.0;
-				bool bPrevCanldeHeight=prevCandleHeight>=2.0;
+				bool bPrevCanldeHeight=prevCandleHeight>=1.75;
 				bool bPrevCandlesAboveTheBodyDownTip=body_down_tip<=Math.Min(MIN(Opens[0],6)[2],MIN(Closes[0],6)[2]);
 				bool bPrevCandlesBelowTheBodyUpTip=body_up_tip>=Math.Max(MAX(Opens[0],6)[2],MAX(Closes[0],6)[2]);
 				bool bCloseAboveDownTip=Close[0]>=down_tip;
 				bool bCloseBelowUpTip=Close[0]<=up_tip;
 				bool bCloseAboveBodyDownTip=Close[0]>=body_down_tip;
 				bool bCloseBelowBodyUpTip=Close[0]<=body_up_tip;
+				bool bCloseAbovePrevBody=Close[0]>=prevCandleTop;
+				bool bCloseBelowPrevBody=Close[0]<=prevCandleBottom;
+				bool bNoHair=High[0]-Close[0]<0.5;
+				bool bNoBeard=Close[0]-Low[0]<0.5;
 				string conds="bPrevdirRed="+bPrevdirRed+";bMydirGreen="+bMydirGreen+";bCandleHeight="+bCandleHeight+";bPrevCanldeHeight="+bPrevCanldeHeight+";bPrevCandlesAboveTheBodyDownTip="+bPrevCandlesAboveTheBodyDownTip+
 				";bPrevCandlesBelowTheBodyUpTip="+bPrevCandlesBelowTheBodyUpTip+";bCloseAboveDownTip="+bCloseAboveDownTip+";bCloseBelowUpTip="+bCloseBelowUpTip+";bCloseAboveBodyDownTip="+bCloseAboveBodyDownTip+";bCloseBelowBodyUpTip="+bCloseBelowBodyUpTip+";bCloseBelowBodyUpTip="+bCloseBelowBodyUpTip;
-				log("DEBUG CONDS:" +conds);
-				if(bPrevdirRed&&bMydirGreen&&bCandleHeight&&bPrevCanldeHeight&&bPrevCandlesAboveTheBodyDownTip&&bCloseAboveDownTip&&bCloseAboveBodyDownTip){
+				//log("DEBUG CONDS:" +conds);
+				if(bCloseAbovePrevBody&&bNoHair&&bPrevdirRed&&bMydirGreen&&bCandleHeight&&bPrevCanldeHeight&&bPrevCandlesAboveTheBodyDownTip&&bCloseAboveDownTip&&bCloseAboveBodyDownTip){
 					trade.type=TRADE_TYPE.KICKASS;
 					//trade.target=Math.Round(prevCandleHeight*4*4);
 					//trade.stop=Math.Round(prevCandleHeight*4*3);
@@ -455,7 +458,7 @@ namespace NinjaTrader.Strategy
 					logState("ENTER LONG KIKASS");
 					//DrawDiamond("ka"+CurrentBars[0],true,0,tick.bid-45,Color.Green);
 				}
-				if(bPrevdirGreen&&bMydirRed&&bCandleHeight&&bPrevCanldeHeight&&bPrevCandlesBelowTheBodyUpTip&&bCloseBelowUpTip&&bCloseBelowBodyUpTip){
+				if(bCloseBelowPrevBody&&bNoBeard&&bPrevdirGreen&&bMydirRed&&bCandleHeight&&bPrevCanldeHeight&&bPrevCandlesBelowTheBodyUpTip&&bCloseBelowUpTip&&bCloseBelowBodyUpTip){
 					trade.type=TRADE_TYPE.KICKASS;
 					//trade.target=Math.Round(prevCandleHeight*4*4);
 					//trade.stop=Math.Round(prevCandleHeight*4*3);
@@ -596,7 +599,7 @@ namespace NinjaTrader.Strategy
 					}
 				}
 			}
-			if(pos>0){
+					if(pos>0&&!tradingLive){
 				
 				if(tick.bid>=trade.entry+trade.target/tf){
 					processTradeEvent(TRADE_EVENT.EXIT_LONG);
@@ -609,7 +612,7 @@ namespace NinjaTrader.Strategy
 					processTradeEvent(TRADE_EVENT.EXIT_LONG);
 				}
 			}
-			else if(pos<0){
+			else if(pos<0&&!tradingLive){
 				if(tick.ask<=trade.entry-trade.target/tf){
 					processTradeEvent(TRADE_EVENT.EXIT_SHORT);
 				}
@@ -622,8 +625,59 @@ namespace NinjaTrader.Strategy
 				}
 			}
 		}
-		
-		
+			protected double getExitLimit(){
+			if(getPos()>0){
+				return trade.entry+trade.target/tf;
+			}
+			else if(getPos()<0){
+				return trade.entry-trade.target/tf;
+			}
+			return 0;
+		}
+		protected double getExitStop(){
+			if(getPos()>0){
+				if(trade.type==TRADE_TYPE.SWING_OUT){
+					return Math.Min(range.high-tm/tf,trade.entry-2*tm/tf);
+				}
+				else{
+					return trade.entry-trade.stop/tf;
+				}
+			}
+			else if (getPos()<0){
+				if(trade.type==TRADE_TYPE.SWING_OUT){
+					return Math.Max(range.low+tm/tf,trade.entry+2*tm/tf);
+				}
+				else{
+					return trade.entry+trade.stop/tf;
+				}
+			}
+			return 0;
+		}/*
+		protected int getExitTarget(){
+			
+				return (int)trade.target;
+			
+		}
+		protected int getExitStop(){
+			if(getPos()>0){
+				if(trade.type==TRADE_TYPE.SWING_OUT){
+					return (int) Math.Max((int)(trade.entry-range.high)*tf+tm,2*tm);
+				}
+				else{
+					return (int) trade.stop;
+				}
+			}
+			else if (getPos()<0){
+				if(trade.type==TRADE_TYPE.SWING_OUT){
+					return(int) Math.Max((int)(range.low-trade.entry)*tf+tm,2*tm);
+					
+				}
+				else{
+					return (int) trade.stop;
+				}
+			}
+			return 0;
+		}*/
 		/*************************************************
 		EXECUTION
 		**************************************************/
@@ -640,17 +694,24 @@ namespace NinjaTrader.Strategy
 							+";CurrentBar"+CurrentBar+";ask="+tick.ask+";bid="+tick.bid);
 					}
 				}
-				else if(ex.pendingLongExit||ex.pendingShortExit){
+				/*else if(ex.pendingLongExit||ex.pendingShortExit){
 					if(ex.exitOrder!=null){
 						CancelOrder(ex.exitOrder);
 						log(">>> CANCELLING EXIT ORDER <<< pendingBar="+ex.pendingBar
 							+";CurrentBar"+CurrentBar+";ask="+tick.ask+";bid="+tick.bid);
 					}
-				}
+				}*/
 			}
 		}
 		
 		void enterLong(double limit){
+		if(Historical&&tradingLive)
+			return;
+			if(tradingLive){
+				log("SETTING LONG EXIT: LIMIT="+getExitLimit()+";STOP="+getExitStop()+";SIGNAL="+trade.signal);			
+				SetProfitTarget(trade.signal,CalculationMode.Price,getExitLimit());
+				SetStopLoss(trade.signal,CalculationMode.Price,getExitStop(),false);
+			}
 			trade.pending=true;
 			ex.pendingLongEntry=true;
 			ex.pendingBar=bar;
@@ -658,6 +719,14 @@ namespace NinjaTrader.Strategy
 			ex.entryOrder=EnterLongLimit(OrderBarIndex,true,NumContractrs,limit,ex.orderID);
 		}
 		void enterLongMarket(){
+		if(Historical&&tradingLive)
+			return;
+		
+			if(tradingLive){
+				log("SETTING LONG EXIT: LIMIT="+getExitLimit()+";STOP="+getExitStop()+";SIGNAL="+trade.signal);			
+				SetProfitTarget(trade.signal,CalculationMode.Price,getExitLimit());
+				SetStopLoss(trade.signal,CalculationMode.Price,getExitStop(),false);
+			}
 			trade.pending=true;
 			ex.pendingLongEntry=true;
 			ex.pendingBar=bar;
@@ -665,6 +734,14 @@ namespace NinjaTrader.Strategy
 			ex.entryOrder=EnterLong(OrderBarIndex,NumContractrs,ex.orderID);
 		}
 		void enterShort( double limit){
+		if(Historical&&tradingLive)
+			return;
+		
+			if(tradingLive){
+				log("SETTING LONG EXIT: LIMIT="+getExitLimit()+";STOP="+getExitStop()+";SIGNAL="+trade.signal);			
+				SetProfitTarget(trade.signal,CalculationMode.Price,getExitLimit());
+				SetStopLoss(trade.signal,CalculationMode.Price,getExitStop(),false);
+			}
 			trade.pending=true;
 			ex.pendingShortEntry=true;
 			ex.pendingBar=bar;
@@ -672,6 +749,13 @@ namespace NinjaTrader.Strategy
 			ex.entryOrder=EnterShortLimit(OrderBarIndex,true,NumContractrs,limit,ex.orderID);
 		}
 		void enterShortMarket(){
+		if(Historical&&tradingLive)
+			return;
+			if(tradingLive){
+				log("SETTING LONG EXIT: LIMIT="+getExitLimit()+";STOP="+getExitStop()+";SIGNAL="+trade.signal);			
+				SetProfitTarget(trade.signal,CalculationMode.Price,getExitLimit());
+				SetStopLoss(trade.signal,CalculationMode.Price,getExitStop(),false);
+			}
 			trade.pending=true;
 			ex.pendingShortEntry=true;
 			ex.pendingBar=bar;
@@ -679,24 +763,37 @@ namespace NinjaTrader.Strategy
 			ex.entryOrder=EnterShort(OrderBarIndex,NumContractrs,ex.orderID);
 		}
 		void exitShort(double limit){
+		if(Historical&&tradingLive)
+			return;
+		
+			
 			trade.pending=true;
 			ex.pendingShortExit=true;
 			ex.pendingBar=bar;
 			ex.exitOrder=ExitShortLimit(OrderBarIndex,true,NumContractrs,limit,ex.orderID,ex.orderID);
 		}
 		void exitShortMarket(){
+		if(Historical&&tradingLive)
+			return;
+		
 			trade.pending=true;
 			ex.pendingShortExit=true;
 			ex.pendingBar=bar;
 			ex.exitOrder=ExitShort(OrderBarIndex,NumContractrs,ex.orderID,ex.orderID);
 		}
 		void exitLong(double limit){
+		if(Historical&&tradingLive)
+			return;
+		
 			trade.pending=true;
 			ex.pendingLongExit=true;
 			ex.pendingBar=bar;
 			ex.exitOrder=ExitLongLimit(OrderBarIndex,true,NumContractrs,limit,ex.orderID,ex.orderID);
 		}
 		void exitLongMarket(){
+		if(Historical&&tradingLive)
+			return;
+		
 			trade.pending=true;
 			ex.pendingLongExit=true;
 			ex.pendingBar=bar;
@@ -725,7 +822,7 @@ namespace NinjaTrader.Strategy
 			 }
     	}
 		else if (ex.exitOrder != null && ex.exitOrder == order){
-         //Print(order.ToString());
+        log(order.ToString());
 			if (order.OrderState == OrderState.Cancelled){
 				log("---->>>> Exit Order Cancelled");
 				ex.pendingLongExit=false;
@@ -751,6 +848,12 @@ namespace NinjaTrader.Strategy
 						logState("POSITION: ENTERED LONG");
 						trade.pending=false;
 						ex.pendingLongEntry=false;
+						/*if(ex.exitOrder!=null){
+							CancelOrder(ex.exitOrder);	
+						}*/
+						/*log("SETTING LONG EXIT: LIMIT="+getExitLimit()+";STOP="+getExitStop()+";SIGNAL="+ex.orderID);				
+						ex.exitOrder=ExitLongLimit(OrderBarIndex,true,NumContractrs,getExitLimit(), ex.orderID+"Exit", ex.orderID);
+						ex.stopOrder=ExitLongStop (OrderBarIndex,true,NumContractrs, getExitStop(), ex.orderID+"Stop", ex.orderID);*/
 					}
 				}
 				else if(ex.pendingShortEntry){
@@ -758,6 +861,12 @@ namespace NinjaTrader.Strategy
 						logState("POSITION: ENTERED SHORT");
 						trade.pending=false;
 						ex.pendingShortEntry=false;
+						/*if(ex.exitOrder!=null){
+							CancelOrder(ex.exitOrder);	
+						}*/
+						//log("SETTING SHORT EXIT: LIMIT="+getExitLimit()+";STOP="+getExitStop()+";SIGNAL="+ex.orderID);
+						/*ex.exitOrder=ExitShortLimit(OrderBarIndex,true,NumContractrs,getExitLimit(), ex.orderID+"Exit", ex.orderID);
+						ex.stopOrder=ExitShortStop (OrderBarIndex,true,NumContractrs, getExitStop(), ex.orderID+"Stop", ex.orderID);*/
 					}
 				}
 			}
@@ -769,6 +878,8 @@ namespace NinjaTrader.Strategy
 					trade.entry=execution.Order.AvgFillPrice;
 					trade.enteredBar=bar;
 					log("EXECUTION: ENTERED at "+trade.entry);
+					
+					
 				}
 				else{
 					if(execution.Order.OrderAction.CompareTo(OrderAction.Sell)==0){
@@ -797,7 +908,14 @@ namespace NinjaTrader.Strategy
 						processRangeEvent(RANGE_EVENT.END);
 						range.active=false;
 					}
+					if(ex.stopOrder!=null&&execution.Order!=ex.stopOrder){
+						CancelOrder(ex.stopOrder);
+					}
+					else if(ex.exitOrder!=null&&execution.Order==ex.exitOrder){	
+						CancelOrder(ex.exitOrder);	
+					}	
 					ex.exitOrder=null;		
+					ex.stopOrder=null;
 				}	
 			}
 		}
@@ -824,14 +942,39 @@ namespace NinjaTrader.Strategy
 				n=name+"_live";
 			using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\Public\Logs\"+n+".log", true))
 			{
-				file.WriteLine(t.ToString("MM-dd HH:mm:ss")+":"+line);
+				string ss="";
+				if(tradingLive)
+					ss="\n";
+				file.WriteLine(ss+t.ToString("MM-dd HH:mm:ss")+":"+line);
 			}
 		}
+		protected void heartbeat(){
+			string n="output";
+			if(tradingLive){
+				n=name+"_live";
+			using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\Public\Logs\"+n+".log", true))
+			{
+				file.Write(".");
+			}
+			}
+		}
+
 		protected int lineNum(){
 			int ret=lineCount++;
 			if(lineCount>5)
 				lineCount=0;
 			return ret;
+		}
+		protected override void OnMarketData(MarketDataEventArgs e){
+		//extra chance for stops - on bid and ask updates	
+			if(virgin)
+				return;
+			if(e.MarketDataType == MarketDataType.Ask||e.MarketDataType == MarketDataType.Bid){	
+				tick.bid=GetCurrentBid(1);
+				tick.ask=GetCurrentAsk(1);
+				tickDetector();
+			}
+			
 		}
         #region Properties
        /* [Description("")]
