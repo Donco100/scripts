@@ -90,19 +90,19 @@ namespace NinjaTrader.Strategy
 		
 		//how far past the line to go before event is triggered
 		
-		Trade 		trade			=	new Trade();
-		Execution 	ex				=	new Execution();
-		int 		bar				=	0;	
-		Tick		tick			=	new Tick();
-		int 		currentBar		=	0;
-		double 		gainTotal		=	0.0;																		//gain accumulator
-		int 		iStartTime		=	20000;
-		int 		iLastEntryTime	=153000;
-		int 		iExitOnCloseTime=155800;
-		int 		iRestartTime	=181500;
-		double		tf				=4;																				//tick fraction - how many ticks per point; 4 for QM, 1 for YM
-		DateTime 	t;																								//current exchange time
-		int 		lineCount		=0;																				//shift text lines on the chart so that they do not overlap
+		protected Trade 		trade			=	new Trade();
+		protected Execution 	ex				=	new Execution();
+		protected int 		bar				=	0;	
+		protected Tick		tick			=	new Tick();
+		protected int 		currentBar		=	0;
+		protected double 		gainTotal		=	0.0;																		//gain accumulator
+		protected int 		iStartTime		=	20000;
+		protected int 		iLastEntryTime	=153000;
+		protected int 		iExitOnCloseTime=155800;
+		protected int 		iRestartTime	=181500;
+		protected double		tf				=4;																				//tick fraction - how many ticks per point; 4 for QM, 1 for YM
+		protected DateTime 	t;																								//current exchange time
+		protected int 		lineCount		=0;																				//shift text lines on the chart so that they do not overlap
 		
         #endregion
 		protected override void OnStartUp(){
@@ -167,12 +167,12 @@ namespace NinjaTrader.Strategy
 		abstract protected  void tickDetector();
 			
 		
-		protected int getExitTarget(){
+		protected virtual int getExitTarget(){
 			
 				return (int)trade.target;
 			
 		}
-		protected int getExitStop(){
+		protected virtual int getExitStop(){
 			if(getPos()>0){
 				return (int) trade.stop;
 			}
@@ -187,7 +187,7 @@ namespace NinjaTrader.Strategy
 		**************************************************/
 			
 		// only called on bar[0]
-		void tick0(int bar){
+		protected void tick0(int bar){
 			this.bar=bar;
 			
 			if(bar>ex.pendingBar+1){																		//taking care of stuck orders
@@ -201,7 +201,7 @@ namespace NinjaTrader.Strategy
 			}
 		}
 		
-		void enterLong(double limit){
+		protected void enterLong(double limit){
 			if(Historical&&tradingLive)
 				return;
 			trade.pending=true;
@@ -210,7 +210,7 @@ namespace NinjaTrader.Strategy
 			ex.orderID=trade.signal;
 			ex.entryOrder=EnterLongLimit(OrderBarIndex,true,NumContracts,limit,ex.orderID);
 		}
-		void enterLongMarket(){
+		protected void enterLongMarket(){
 			if(Historical&&tradingLive)
 				return;
 			trade.pending=true;
@@ -219,7 +219,7 @@ namespace NinjaTrader.Strategy
 			ex.orderID=trade.signal;
 			ex.entryOrder=EnterLong(OrderBarIndex,NumContracts,ex.orderID);
 		}
-		void enterShort( double limit){
+		protected void enterShort( double limit){
 			if(Historical&&tradingLive)
 				return;
 			trade.pending=true;
@@ -228,7 +228,7 @@ namespace NinjaTrader.Strategy
 			ex.orderID=trade.signal;
 			ex.entryOrder=EnterShortLimit(OrderBarIndex,true,NumContracts,limit,ex.orderID);
 		}
-		void enterShortMarket(){
+		protected void enterShortMarket(){
 			if(Historical&&tradingLive)
 				return;
 			trade.pending=true;
@@ -237,7 +237,7 @@ namespace NinjaTrader.Strategy
 			ex.orderID=trade.signal;
 			ex.entryOrder=EnterShort(OrderBarIndex,NumContracts,ex.orderID);
 		}
-		void exitShort(double limit){
+		protected void exitShort(double limit){
 			if(Historical&&tradingLive)
 				return;
 			trade.pending=true;
@@ -245,7 +245,7 @@ namespace NinjaTrader.Strategy
 			ex.pendingBar=bar;
 			ex.exitOrder=ExitShortLimit(OrderBarIndex,true,NumContracts,limit,ex.orderID,ex.orderID);
 		}
-		void exitShortMarket(){
+		protected void exitShortMarket(){
 			if(Historical&&tradingLive)
 				return;
 			trade.pending=true;
@@ -253,7 +253,7 @@ namespace NinjaTrader.Strategy
 			ex.pendingBar=bar;
 			ex.exitOrder=ExitShort(OrderBarIndex,NumContracts,ex.orderID,ex.orderID);
 		}
-		void exitLong(double limit){
+		protected void exitLong(double limit){
 			if(Historical&&tradingLive)
 				return;
 			trade.pending=true;
@@ -261,7 +261,7 @@ namespace NinjaTrader.Strategy
 			ex.pendingBar=bar;
 			ex.exitOrder=ExitLongLimit(OrderBarIndex,true,NumContracts,limit,ex.orderID,ex.orderID);
 		}
-		void exitLongMarket(){
+		protected void exitLongMarket(){
 			if(Historical&&tradingLive)
 				return;
 			trade.pending=true;
@@ -269,7 +269,7 @@ namespace NinjaTrader.Strategy
 			ex.pendingBar=bar;
 			ex.exitOrder=ExitLong(OrderBarIndex,NumContracts,ex.orderID,ex.orderID);
 		}
-		int getPos(){
+		protected int getPos(){
 			Position pES=Positions[OrderBarIndex];
 			if(pES.MarketPosition==MarketPosition.Long)
 				return 1;
