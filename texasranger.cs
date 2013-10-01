@@ -293,18 +293,18 @@ namespace NinjaTrader.Strategy
 		protected void loadCandlesticks(){
 			for(int i=0;i<3;i++){
 				candles[i]=new Candle();
-				candles[i].high=Highs[3][i];																		//based on asks
-				candles[i].low=Lows[2][i];																			//based on bids	
+				candles[i].high=Highs[0][i];																		//based on asks
+				candles[i].low=Lows[0][i];																			//based on bids	
 				candles[i].height=(int)((candles[i].high-candles[i].low)*tf);
-				candles[i].top=Math.Max(Opens[3][i],Closes[3][i]);
-				candles[i].bottom=Math.Min(Opens[2][i],Closes[2][i]);
+				candles[i].top=Math.Max(Opens[0][i],Closes[0][i]);
+				candles[i].bottom=Math.Min(Opens[0][i],Closes[0][i]);
 				candles[i].body=(int)((candles[i].top-candles[i].bottom)*tf);
 				candles[i].hair=(int)((candles[i].high=candles[i].top)*tf);
 				candles[i].beard=(int)((candles[i].bottom-candles[i].low)*tf);
-				if(Opens[2][i]>Closes[2][i])
+				if(Opens[0][i]>Closes[0][i])
 					candles[i].dir=-1;
 				else	
-					candles[i].dir=-1;
+					candles[i].dir=1;
 				double quarter=(candles[i].height/4)/tf;
 				double bodyQuarter=(candles[i].body/4)/tf;
 				candles[i].topQuarter=candles[i].high-quarter;
@@ -357,7 +357,7 @@ namespace NinjaTrader.Strategy
 			conds.Add("SecondCloseGTEQFirstBodyTop",candles[0].top>=candles[1].topBodyQuarter);
 			conds.Add("FirstHaircut",candles[1].hair<=FIRST_HAIRCUT);
 			conds.Add("SecondHaircut",candles[0].hair<=SECOND_HAIRCUT);
-			logState(dumpCandlesticks()+"\n"+dumpConditions(conds));
+			logState(dumpCandlesticks()+dumpConditions(conds));
 			if(evalConditions("ShpalyDownUp",conds)){
 				if(candles[1].height>=12){
 					trade.target=12;
@@ -390,7 +390,7 @@ namespace NinjaTrader.Strategy
 			conds.Add("SecondCloseLTEQFirstBodyBottom",candles[0].bottom<=candles[1].bottomBodyQuarter);
 			conds.Add("FirstBeard",candles[1].beard<=FIRST_BEARD);
 			conds.Add("SecondBeard",candles[0].beard<=SECOND_BEARD);
-			logState(dumpCandlesticks()+"\n"+dumpConditions(conds));
+			logState(dumpCandlesticks()+dumpConditions(conds));
 			if(evalConditions("ShpalyUpDown",conds)){
 				if(candles[1].height>=12){
 					trade.target=12;
