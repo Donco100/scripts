@@ -283,9 +283,9 @@ namespace NinjaTrader.Strategy
 			}
 			if(pos==0&&allowKickass){
 				loadCandlesticks();
-				if(shpalaDownUp())
+				if(shpalyDownUp())
 					processTradeEvent(TRADE_EVENT.KICKASS_LONG);
-				else if(shpalaUpDown())
+				else if(shpalyUpDown())
 					processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
 			}
 		}
@@ -348,20 +348,16 @@ namespace NinjaTrader.Strategy
 			const int FIRST_HAIRCUT=1;																				//ticks
 			const int SECOND_HAIRCUT=2;																				//ticks
 			
-			if(TradingLive){
-				logState("HEARTBEAT: prevCandleDir="+prevCandleDir+";candleDir="+candleDir+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
-			}
-			//log("DEBUG prevCandleDir="+prevCandleDir+";candleDir="+candleDir+";candleHeight="+candleHeight+";prevCandleBody="+prevCandleBody+";prevCandleTop="+prevCandleTop+";prevCandleBottom="+prevCandleBottom+";body_up_tip="+body_up_tip+";body_down_tip="+body_down_tip+";prevCandleHeight="+prevCandleHeight+";down_tip="+down_tip+";up_tip="+up_tip+";Close[0]="+Close[0]+";Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2])="+Math.Min(MIN(Opens[2],3)[2],MIN(Closes[2],3)[2]));
 			Dictionary<string, bool> conds =new Dictionary<string, bool>();
 			conds.Add("FirstRed",candles[1].dir==-1);
 			conds.Add("SecondGreen",candles[0].dir==1);
 			conds.Add("FirstHeight",candles[1].height>=FIRST_STICK_HEIGHT);
 			conds.Add("SecondHeight",candles[0].height>=SECOND_STICK_HEIGHT);
-			conds.Add("StickingDown",candles[1].topBodyQuarter<=Math.Min(MIN(Opens[2],PRE_PERIOD)[2],MIN(Closes[2],PRE_PERIOD)[2]);
+			conds.Add("StickingDown",candles[1].topBodyQuarter<=Math.Min(MIN(Opens[2],PRE_PERIOD)[2],MIN(Closes[2],PRE_PERIOD)[2]));
 			conds.Add("SecondCloseGTEQFirstBodyTop",candles[0].top>=candles[1].topBodyQuarter);
 			conds.Add("FirstHaircut",candles[1].hair<=FIRST_HAIRCUT);
 			conds.Add("SecondHaircut",candles[0].hair<=SECOND_HAIRCUT);
-			logState(dumpCandlesticks+"\n"+dumpConditions(conds));
+			logState(dumpCandlesticks()+"\n"+dumpConditions(conds));
 			if(evalConditions("ShpalyDownUp",conds)){
 				if(candles[1].height>=12){
 					trade.target=12;
@@ -390,11 +386,11 @@ namespace NinjaTrader.Strategy
 			conds.Add("SecondRed",candles[0].dir==-1);
 			conds.Add("FirstHeight",candles[1].height>=FIRST_STICK_HEIGHT);
 			conds.Add("SecondHeight",candles[0].height>=SECOND_STICK_HEIGHT);
-			conds.Add("StickingUp",candles[1].bottomBodyQuarter>=Math.Max(MAX(Opens[3],PRE_PERIOD)[2],MAX(Closes[3],PRE_PERIOD)[2]);
+			conds.Add("StickingUp",candles[1].bottomBodyQuarter>=Math.Max(MAX(Opens[3],PRE_PERIOD)[2],MAX(Closes[3],PRE_PERIOD)[2]));
 			conds.Add("SecondCloseLTEQFirstBodyBottom",candles[0].bottom<=candles[1].bottomBodyQuarter);
 			conds.Add("FirstBeard",candles[1].beard<=FIRST_BEARD);
 			conds.Add("SecondBeard",candles[0].beard<=SECOND_BEARD);
-			logState(dumpCandlesticks+"\n"+dumpConditions(conds));
+			logState(dumpCandlesticks()+"\n"+dumpConditions(conds));
 			if(evalConditions("ShpalyUpDown",conds)){
 				if(candles[1].height>=12){
 					trade.target=12;
@@ -427,7 +423,7 @@ namespace NinjaTrader.Strategy
 					break;
 				case TRADE_EVENT.KICKASS_SHORT:
 					trade.type="KICKASS";
-					enterShortarket();
+					enterShortMarket();
 					logState("TRADE EVENT "+e);	
 					break;	
 				case TRADE_EVENT.EXIT_ON_EOD:
