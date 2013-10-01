@@ -45,7 +45,7 @@ namespace NinjaTrader.Strategy
 	
     /// </summary>
     [Description("Base functionality implementation")]
-    public class Base : Strategy
+    abstract public class Base : Strategy
     {
 		#region Types
 		public struct Trade{
@@ -101,7 +101,7 @@ namespace NinjaTrader.Strategy
 		int 		iExitOnCloseTime=155800;
 		int 		iRestartTime	=181500;
 		double		tf				=4;																				//tick fraction - how many ticks per point; 4 for QM, 1 for YM
-		DateTime 	t				=null;																			//current exchange time
+		DateTime 	t;																								//current exchange time
 		int 		lineCount		=0;																				//shift text lines on the chart so that they do not overlap
 		
         #endregion
@@ -154,11 +154,7 @@ namespace NinjaTrader.Strategy
 					tickDetector();
 				}
 				else if(!Historical){
-					if(virgin){
-						virgin=false;
-						range.active=false;
-						log("RESET VIRGIN");
-					}
+					
 					tick.bid=GetCurrentBid(1);
 					tick.ask=GetCurrentAsk(1);
 					tickDetector();
@@ -171,21 +167,18 @@ namespace NinjaTrader.Strategy
 		abstract protected  void tickDetector();
 			
 		
-		protected double getExitLimit(){
-			if(getPos()>0){
-				return trade.entry+trade.target/tf;
-			}
-			else if(getPos()<0){
-				return trade.entry-trade.target/tf;
-			}
-			return 0;
+		protected int getExitTarget(){
+			
+				return (int)trade.target;
+			
 		}
-		protected double getExitStop(){
+		protected int getExitStop(){
 			if(getPos()>0){
-				return trade.entry-trade.stop/tf;
+				return (int) trade.stop;
 			}
 			else if (getPos()<0){
-				return trade.entry+trade.stop/tf;
+				return (int) trade.stop;
+				
 			}
 			return 0;
 		}
@@ -372,11 +365,6 @@ namespace NinjaTrader.Strategy
 					gainTotal+=net_gain;
 					log("EXITED at "+currentExit+";$$$$$$ gain="+gain+";net="+net_gain.ToString("C")+"; $$$$$ total="+gainTotal.ToString("C"));
 				
-					if(ex.exitOrder==null){
-						log("EXECUTION: RESET WATCH");
-						processRangeEvent(RANGE_EVENT.END);
-						range.active=false;
-					}
 					if(ex.stopOrder!=null&&execution.Order!=ex.stopOrder){
 						CancelOrder(ex.stopOrder);
 					}
@@ -394,19 +382,20 @@ namespace NinjaTrader.Strategy
 			//SendMail("adaptive.kolebator@gmail.com", "adaptive.kolebator@gmail.com", "Backtest Tesults", s);
 			log("TERMINATE "+strategyName);
 		}	
-		
+		abstract protected string dumpSessionParameters();
+		abstract protected string dumpState();
 		protected void initLog(){
-			log("**********************    "+name+"   ************************************");
-			log("MaxRange="+maxRange+";MaxRangePeriod="+MaxRangePeriod+";MinRange="+minRange+";MinRangePeriod="+MinRangePeriod);
+			log("**********************    "+strategyName+"   ************************************");
+			log(dumpSessionParameters());
 		}
 		protected void logState(string line){
-				string state=" :: RANGE:amplitude="+range.amplitude+";period="+range.period+";high="+range.high+";median="+range.median+";low="+range.low+";active="+range.active+"  TICK:bid="+tick.bid+";ask="+tick.ask+"  TRADE:target="+trade.target+";stop="+trade.stop+";type="+trade.type+"; POS="+getPos();
-			log(line+state);
+			string state=" :: BASE state TICK:bid="+tick.bid+";ask="+tick.ask+"  TRADE:target="+trade.target+";stop="+trade.stop+";type="+trade.type+"; POS="+getPos();
+			log(line+state+"\n"+dumpState());
 		}		
 		protected void log(string line){
 			string n="output";
 			if(tradingLive)
-				n=name+"_live";
+				n=strategyName+"_live";
 			using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\Public\Logs\"+n+".log", true))
 			{
 				string ss="";
@@ -418,7 +407,7 @@ namespace NinjaTrader.Strategy
 		protected void heartbeat(){
 			string n="output";
 			if(tradingLive){
-				n=name+"_live";
+				n=strategyName+"_live";
 			using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\Public\Logs\"+n+".log", true))
 			{
 				file.Write(".");
@@ -433,9 +422,6 @@ namespace NinjaTrader.Strategy
 			return ret;
 		}
 		protected override void OnMarketData(MarketDataEventArgs e){
-		//extra chance for stops - on bid and ask updates	
-			if(virgin)
-				return;
 			if(e.MarketDataType == MarketDataType.Ask||e.MarketDataType == MarketDataType.Bid){	
 				tick.bid=GetCurrentBid(1);
 				tick.ask=GetCurrentAsk(1);
@@ -444,22 +430,6 @@ namespace NinjaTrader.Strategy
 			
 		}
         #region Properties
-       /* [Description("")]
-        [GridCategory("Parameters")]
-        public int Bottom
-        {
-            get { return bottom; }
-            set { bottom = Math.Max(1, value); }
-        }
-
-        [Description("")]
-        [GridCategory("Parameters")]
-        public int Top
-        {
-            get { return top; }
-            set { top = Math.Max(1, value); }
-        }*/
-
         [Description("")]
         [GridCategory("Parameters")]
         public int NumContracts
@@ -488,85 +458,7 @@ namespace NinjaTrader.Strategy
             get { return strategyName; }
             set { strategyName = value; }
         }
-		[Description("")]
-        [GridCategory("Parameters")]
-        public int MaxRangePeriod
-        {
-            get { return maxPeriod; }
-            set { maxPeriod = value; }
-        } 
-		[Description("Maximum Range")]
-        [GridCategory("Parameters")]
-        public double MaxRange
-        {
-            get { return maxRange; }
-            set { maxRange = value; }
-        } 
-/*
-		[Description("")]
-        [GridCategory("Parameters")]
-        public double ProfitTarget
-        {
-            get { return profitTarget; }
-            set { profitTarget = value; }
-        }*/ 
-		[Description("")]
-        [GridCategory("Parameters")]
-        public double StopLoss
-        {
-            get { return stopLoss; }
-            set { stopLoss = value; }
-        } 
-		[Description("")]
-        [GridCategory("Parameters")]
-        public int MinRangePeriod
-        {
-            get { return minPeriod; }
-            set { minPeriod = value; }
-        } 
-		[Description("")]
-        [GridCategory("Parameters")]
-        public double MinRange
-        {
-            get { return minRange; }
-            set { minRange= value; }
-        } 
 		
-		[Description("Exit the positive trades after this number of bars")]
-        [GridCategory("Parameters")]
-        public int TimeLimitTrade
-        {
-            get { return timeLimitTrade; }
-            set {  timeLimitTrade= value; }
-        } 
-		[Description("Enables oscillating before the breakout")]
-        [GridCategory("Parameters")]
-        public bool AllowSwingIn
-        {
-            get { return allowPreBounce; }
-            set {  allowPreBounce= value; }
-        } 
-		[Description("Enables oscillating before the breakout")]
-        [GridCategory("Parameters")]
-        public bool AllowSwingOut
-        {
-            get { return allowSwingOut; }
-            set {  allowSwingOut= value; }
-        }
-		[Description("Enables terminating long trades")]
-        [GridCategory("Parameters")]
-        public bool AllowLongTradesKill
-        {
-            get { return allowLongTradesKill; }
-            set {  allowLongTradesKill= value; }
-        }
-		[Description("Enables allowKickass indicator")]
-        [GridCategory("Parameters")]
-        public bool AllowKickass
-        {
-            get { return allowKickass; }
-            set {  allowKickass= value; }
-        }
 		protected int OrderBarIndex
         {
             get { return orderBarIndex; }
