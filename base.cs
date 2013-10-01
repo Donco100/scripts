@@ -85,7 +85,7 @@ namespace NinjaTrader.Strategy
 		private bool 	tradingLive			=	false; 																//Default setting for TradingLive
 		private string 	contractMonth		=	"12-13"; 															//Default setting for ContractMonth
 		private string 	strategyName		=	"Base";  															//Default setting for Name
-		private string 	instrumentName		=	"";
+		private string 	instrumentName		=	"ES";
 		
 		
 		//how far past the line to go before event is triggered
@@ -458,7 +458,13 @@ namespace NinjaTrader.Strategy
             get { return strategyName; }
             set { strategyName = value; }
         }
-		
+		[Description("Specifies the name of the strategy (for logging)")]
+        [GridCategory("Parameters")]
+        public string InstrumentName
+        {
+            get { return instrumentName; }
+            set { instrumentName = value; }
+        }
 		protected int OrderBarIndex
         {
             get { return orderBarIndex; }
