@@ -77,6 +77,7 @@ namespace NinjaTrader.Strategy
 			public double bottomQuarter;
 			public double topBodyQuarter;
 			public double bottomBodyQuarter;
+			public double preaverage;																				//average of medians of n sticks prior to this one
 		}
 		public enum RANGE_EVENT {DETECT,BREAKOUT,BREAKOUT_CLOSE,END};	//END is for unknown reason stop on loss happened
 		public enum TRADE_EVENT {EXIT_ON_EOD, SWING_IN_SHORT,SWING_IN_LONG, SWING_OUT_LONG,SWING_OUT_SHORT,EXIT_LONG_LONG_TRADE,EXIT_LONG_SHORT_TRADE,EXIT_LONG,EXIT_SHORT,STOP_LONG,STOP_SHORT,KICKASS_LONG,KICKASS_SHORT};
@@ -311,15 +312,27 @@ namespace NinjaTrader.Strategy
 				candles[i].bottomQuarter=candles[i].low+quarter;
 				candles[i].topBodyQuarter=candles[i].top-bodyQuarter;
 				candles[i].bottomBodyQuarter=candles[i].bottom+bodyQuarter;
+				candles[i].preaverage=0;
+				for(int j=i+1;j<i+8;i++){
+					candles[i].preaverage+=(Highs[0][i]-Lows[0][i])/2;
+				}
+				candles[i].preaverage/=7;
 			}
 		}
 		protected string dumpCandlesticks(){
 			string output="";
 			for(int i=0;i<3;i++){
-				output+="CANDLE["+i+"]: high="+candles[i].high+";low="+candles[i].low+";height="+candles[i].height+";top="+candles[i].top+
+				string s="";
+				int j=0;
+				if(i>0)
+					j=15;
+				for(int k=0;k<j;k++){
+					s+=" ";
+				}
+				output+=s+"CANDLE["+i+"]: high="+candles[i].high+";low="+candles[i].low+";height="+candles[i].height+";top="+candles[i].top+
 					";bottom="+candles[i].bottom+";body="+candles[i].body+";hair="+candles[i].hair+";beard="+candles[i].beard+";dir="+candles[i].dir+
 					";topQuarter="+candles[i].topQuarter+";bottomQuarter="+candles[i].bottomQuarter+";topBodyQuarter="+candles[i].topBodyQuarter+
-					";bottomBodyQuarter="+candles[i].bottomBodyQuarter+"\n";
+					";bottomBodyQuarter="+candles[i].bottomBodyQuarter+";preaverage="+candles[i].preaverage+"\n";
 			}
 			return output;
 		}
@@ -357,12 +370,7 @@ namespace NinjaTrader.Strategy
 			conds.Add("SecondCloseGTEQFirstBodyTop",candles[0].top>=candles[1].topBodyQuarter);
 			conds.Add("TopsMatch",candles[0].top >= candles[1].top-1/tf);
 			conds.Add("SharpDown",candles[2].top>=candles[1].top+(candles[2].body/2)/tf);
-			double preaverage=0;
-			for(int i=2;i<9;i++){
-				preaverage+=(Highs[0][i]-Lows[0][i])/2;
-			}
-			preaverage/=7;
-			conds.Add("Preaverage",preaverage>=candles[1].top+(candles[1].body/2)/tf);
+			conds.Add("Preaverage",candles[1].preaverage>=candles[1].top+(candles[1].body/2)/tf);
 			//conds.Add("Preaverage",preaverage>=candles[0].top+candles[1].body/tf);
 			conds.Add("FirstHaircut",candles[1].hair<=candles[1].body);
 			conds.Add("SecondHaircut",candles[0].hair<=candles[0].body+1);
@@ -378,7 +386,7 @@ namespace NinjaTrader.Strategy
 				}
 				else {
 					trade.target=4;
-					trade.stop=12;
+					trade.stop=8;
 				}
 				trade.signal="kickass shpaly downup";
 				return true;
@@ -404,12 +412,7 @@ namespace NinjaTrader.Strategy
 			conds.Add("bottomsMatch",candles[0].bottom<=candles[1].bottom+1/tf);
 			
 			conds.Add("SharpUp",candles[2].bottom<=candles[1].bottom-(candles[2].body/2)/tf);
-			double preaverage=0;
-			for(int i=2;i<9;i++){
-				preaverage+=(Highs[0][i]-Lows[0][i])/2;
-			}
-			preaverage/=7;
-			conds.Add("Preaverage",preaverage<=candles[1].bottom-candles[1].body/tf);
+			conds.Add("Preaverage",candles[1].preaverage<=candles[1].bottom-candles[1].body/tf);
 			
 			//conds.Add("Preaverage",preaverage<=candles[0].bottom-candles[1].body/tf);
 			
@@ -427,7 +430,7 @@ namespace NinjaTrader.Strategy
 				}
 				else {
 					trade.target=4;
-					trade.stop=12;
+					trade.stop=8;
 				}
 				trade.signal="kickass shpaly updown";
 				return true;
