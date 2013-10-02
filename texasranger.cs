@@ -372,7 +372,7 @@ namespace NinjaTrader.Strategy
 			conds.Add("StickingDown",candles[1].topBodyQuarter<=Math.Min(MIN(Opens[0],PRE_PERIOD)[2],MIN(Closes[0],PRE_PERIOD)[2]));
 			conds.Add("SecondCloseGTEQFirstBodyTop",candles[0].top>=candles[1].topBodyQuarter);
 			conds.Add("TopsMatch",candles[0].top >= candles[1].top-1/tf);
-			conds.Add("SharpDown",candles[2].top>=candles[1].top+(candles[2].body/2)/tf);
+			conds.Add("SharpDown",candles[2].top>=candles[1].top+(candles[2].body)/tf);
 			conds.Add("Preaverage",candles[1].preaverage>=candles[1].top+(candles[1].body/2)/tf);
 			//conds.Add("Preaverage",preaverage>=candles[0].top+candles[1].body/tf);
 			conds.Add("FirstHaircut",candles[1].hair<=candles[1].body);
@@ -389,7 +389,7 @@ namespace NinjaTrader.Strategy
 				}
 				else {
 					trade.target=4;
-					trade.stop=8;
+					trade.stop=12;
 				}
 				trade.signal="kickass shpaly downup";
 				return true;
@@ -414,7 +414,7 @@ namespace NinjaTrader.Strategy
 			conds.Add("SecondCloseLTEQFirstBodyBottom",candles[0].bottom<=candles[1].bottomBodyQuarter);
 			conds.Add("bottomsMatch",candles[0].bottom<=candles[1].bottom+1/tf);
 			
-			conds.Add("SharpUp",candles[2].bottom<=candles[1].bottom-(candles[2].body/2)/tf);
+			conds.Add("SharpUp",candles[2].bottom<=candles[1].bottom-(candles[2].body)/tf);
 			conds.Add("Preaverage",candles[1].preaverage<=candles[1].bottom-candles[1].body/tf);
 			
 			//conds.Add("Preaverage",preaverage<=candles[0].bottom-candles[1].body/tf);
@@ -433,7 +433,7 @@ namespace NinjaTrader.Strategy
 				}
 				else {
 					trade.target=4;
-					trade.stop=8;
+					trade.stop=12;
 				}
 				trade.signal="kickass shpaly updown";
 				return true;
