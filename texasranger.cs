@@ -313,10 +313,13 @@ namespace NinjaTrader.Strategy
 				candles[i].topBodyQuarter=candles[i].top-bodyQuarter;
 				candles[i].bottomBodyQuarter=candles[i].bottom+bodyQuarter;
 				candles[i].preaverage=0;
-				for(int j=i+1;j<i+8;i++){
-					candles[i].preaverage+=(Highs[0][i]-Lows[0][i])/2;
+				int c=0;
+				for(int j=i+1;j<i+8;j++){
+					candles[i].preaverage+=Lows[0][j]+(Highs[0][j]-Lows[0][j])/2;
+					c++;
 				}
-				candles[i].preaverage/=7;
+				
+				candles[i].preaverage/=c;
 			}
 		}
 		protected string dumpCandlesticks(){
