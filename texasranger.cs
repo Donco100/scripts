@@ -300,7 +300,7 @@ namespace NinjaTrader.Strategy
 				candles[i].top=Math.Max(Opens[0][i],Closes[0][i]);
 				candles[i].bottom=Math.Min(Opens[0][i],Closes[0][i]);
 				candles[i].body=(int)((candles[i].top-candles[i].bottom)*tf);
-				candles[i].hair=(int)((candles[i].high=candles[i].top)*tf);
+				candles[i].hair=(int)((candles[i].high-candles[i].top)*tf);
 				candles[i].beard=(int)((candles[i].bottom-candles[i].low)*tf);
 				if(Opens[0][i]>Closes[0][i])
 					candles[i].dir=-1;
