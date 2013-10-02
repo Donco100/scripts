@@ -109,7 +109,7 @@ namespace NinjaTrader.Strategy
 					log("RESET VIRGIN");
 				}
 			}
-			logState("barDetector");
+			//logState("barDetector");
 			int iTime=ToTime(Time[0]);	
 			
 			if((iTime>=iLastEntryTime&&iTime<iRestartTime)){													// detect regular trading pause TODO: get trading hours from the exchange to support short days
@@ -136,7 +136,7 @@ namespace NinjaTrader.Strategy
 			
 			if(bar>maxPeriod&&!range.active){
 				//range detection
-				log("R");
+				
 				int r=maxPeriod+1;
 				while(r>minPeriod){
 					r--;
@@ -343,8 +343,8 @@ namespace NinjaTrader.Strategy
 		}
 		protected bool shpalyDownUp(){
 			const int PRE_PERIOD=6;																					//sticks
-			const int FIRST_STICK_HEIGHT=7;																			//ticks
-			const int SECOND_STICK_HEIGHT=4;																		//ticks
+			const int FIRST_STICK_HEIGHT=4;																			//ticks
+			const int SECOND_STICK_HEIGHT=3;																		//ticks
 			const int FIRST_HAIRCUT=1;																				//ticks
 			const int SECOND_HAIRCUT=2;																				//ticks
 			
@@ -353,13 +353,26 @@ namespace NinjaTrader.Strategy
 			conds.Add("SecondGreen",candles[0].dir==1);
 			conds.Add("FirstHeight",candles[1].height>=FIRST_STICK_HEIGHT);
 			conds.Add("SecondHeight",candles[0].height>=SECOND_STICK_HEIGHT);
-			conds.Add("StickingDown",candles[1].topBodyQuarter<=Math.Min(MIN(Opens[2],PRE_PERIOD)[2],MIN(Closes[2],PRE_PERIOD)[2]));
+			conds.Add("StickingDown",candles[1].topBodyQuarter<=Math.Min(MIN(Opens[0],PRE_PERIOD)[2],MIN(Closes[0],PRE_PERIOD)[2]));
 			conds.Add("SecondCloseGTEQFirstBodyTop",candles[0].top>=candles[1].topBodyQuarter);
-			conds.Add("FirstHaircut",candles[1].hair<=FIRST_HAIRCUT);
-			conds.Add("SecondHaircut",candles[0].hair<=SECOND_HAIRCUT);
+			conds.Add("TopsMatch",candles[0].top >= candles[1].top-1/tf);
+			conds.Add("SharpDown",candles[2].top>=candles[1].top+(candles[2].body/2)/tf);
+			double preaverage=0;
+			for(int i=2;i<9;i++){
+				preaverage+=(Highs[0][i]-Lows[0][i])/2;
+			}
+			preaverage/=7;
+			conds.Add("Preaverage",preaverage>=candles[1].top+(candles[1].body/2)/tf);
+			//conds.Add("Preaverage",preaverage>=candles[0].top+candles[1].body/tf);
+			conds.Add("FirstHaircut",candles[1].hair<=candles[1].body);
+			conds.Add("SecondHaircut",candles[0].hair<=candles[0].body+1);
 			logState(dumpCandlesticks()+dumpConditions(conds));
 			if(evalConditions("ShpalyDownUp",conds)){
-				if(candles[1].height>=12){
+				if(candles[1].height>=20){
+					trade.target=20;
+					trade.stop=12;
+				}
+				else if(candles[1].height>=12){
 					trade.target=12;
 					trade.stop=12;
 				}
@@ -375,8 +388,8 @@ namespace NinjaTrader.Strategy
 		}
 		protected bool shpalyUpDown(){
 			const int PRE_PERIOD=6;																					//sticks
-			const int FIRST_STICK_HEIGHT=7;																			//ticks
-			const int SECOND_STICK_HEIGHT=4;																		//ticks
+			const int FIRST_STICK_HEIGHT=4;																			//ticks
+			const int SECOND_STICK_HEIGHT=3;																		//ticks
 			const int FIRST_BEARD=1;																				//ticks
 			const int SECOND_BEARD=2;																				//ticks
 			
@@ -386,13 +399,29 @@ namespace NinjaTrader.Strategy
 			conds.Add("SecondRed",candles[0].dir==-1);
 			conds.Add("FirstHeight",candles[1].height>=FIRST_STICK_HEIGHT);
 			conds.Add("SecondHeight",candles[0].height>=SECOND_STICK_HEIGHT);
-			conds.Add("StickingUp",candles[1].bottomBodyQuarter>=Math.Max(MAX(Opens[3],PRE_PERIOD)[2],MAX(Closes[3],PRE_PERIOD)[2]));
+			conds.Add("StickingUp",candles[1].bottomBodyQuarter>=Math.Max(MAX(Opens[0],PRE_PERIOD)[2],MAX(Closes[0],PRE_PERIOD)[2]));
 			conds.Add("SecondCloseLTEQFirstBodyBottom",candles[0].bottom<=candles[1].bottomBodyQuarter);
-			conds.Add("FirstBeard",candles[1].beard<=FIRST_BEARD);
-			conds.Add("SecondBeard",candles[0].beard<=SECOND_BEARD);
-			logState(dumpCandlesticks()+dumpConditions(conds));
+			conds.Add("bottomsMatch",candles[0].bottom<=candles[1].bottom+1/tf);
+			
+			conds.Add("SharpUp",candles[2].bottom<=candles[1].bottom-(candles[2].body/2)/tf);
+			double preaverage=0;
+			for(int i=2;i<9;i++){
+				preaverage+=(Highs[0][i]-Lows[0][i])/2;
+			}
+			preaverage/=7;
+			conds.Add("Preaverage",preaverage<=candles[1].bottom-candles[1].body/tf);
+			
+			//conds.Add("Preaverage",preaverage<=candles[0].bottom-candles[1].body/tf);
+			
+			conds.Add("FirstBeard",candles[1].beard<=candles[1].body);
+			conds.Add("SecondBeard",candles[0].beard<=candles[0].body+1);
+			//logState(dumpCandlesticks()+dumpConditions(conds));
 			if(evalConditions("ShpalyUpDown",conds)){
-				if(candles[1].height>=12){
+				if(candles[1].height>=20){
+					trade.target=20;
+					trade.stop=12;
+				}
+				else if(candles[1].height>=12){
 					trade.target=12;
 					trade.stop=12;
 				}
@@ -400,7 +429,7 @@ namespace NinjaTrader.Strategy
 					trade.target=4;
 					trade.stop=12;
 				}
-				trade.signal="kickass shpaly dupdown";
+				trade.signal="kickass shpaly updown";
 				return true;
 			}
 			return false;
