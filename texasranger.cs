@@ -78,6 +78,8 @@ namespace NinjaTrader.Strategy
 			public double topBodyQuarter;
 			public double bottomBodyQuarter;
 			public double preaverage;																				//average of medians of n sticks prior to this one
+			public double premin;
+			public double premax;
 		}
 		public enum RANGE_EVENT {DETECT,BREAKOUT,BREAKOUT_CLOSE,END};	//END is for unknown reason stop on loss happened
 		public enum TRADE_EVENT {EXIT_ON_EOD, SWING_IN_SHORT,SWING_IN_LONG, SWING_OUT_LONG,SWING_OUT_SHORT,EXIT_LONG_LONG_TRADE,EXIT_LONG_SHORT_TRADE,EXIT_LONG,EXIT_SHORT,STOP_LONG,STOP_SHORT,KICKASS_LONG,KICKASS_SHORT};
@@ -320,6 +322,8 @@ namespace NinjaTrader.Strategy
 				}
 				
 				candles[i].preaverage/=c;
+				candles[i].premin=MIN(Lows[0],6)[i+i];
+				candles[i].premax=MIN(Highs[0],6)[i+i];
 			}
 		}
 		protected string dumpCandlesticks(){
@@ -335,13 +339,13 @@ namespace NinjaTrader.Strategy
 				output+=s+"CANDLE["+i+"]: high="+candles[i].high+";low="+candles[i].low+";height="+candles[i].height+";top="+candles[i].top+
 					";bottom="+candles[i].bottom+";body="+candles[i].body+";hair="+candles[i].hair+";beard="+candles[i].beard+";dir="+candles[i].dir+
 					";topQuarter="+candles[i].topQuarter+";bottomQuarter="+candles[i].bottomQuarter+";topBodyQuarter="+candles[i].topBodyQuarter+
-					";bottomBodyQuarter="+candles[i].bottomBodyQuarter+";preaverage="+candles[i].preaverage+"\n";
+					";bottomBodyQuarter="+candles[i].bottomBodyQuarter+";preaverage="+candles[i].preaverage+";premin="+candles[i].premin+";premax="+candles[i].premax+"\n";
 			}
 			return output;
 		}
 	
-		protected string dumpConditions(Dictionary<string, bool> conds ){
-			string output="CONDS:";
+		protected string dumpConditions(string name,Dictionary<string, bool> conds ){
+			string output=name+" CONDS:";
 			foreach (KeyValuePair<string, bool> pair in conds){
 				output+=pair.Key+","+pair.Value+";";
 			}
@@ -351,7 +355,7 @@ namespace NinjaTrader.Strategy
 			string output="CONDS:";
 			foreach (KeyValuePair<string, bool> pair in conds){
 				if(!pair.Value){
-					log(pattern+" COND FAILED:"+pair.Key);
+					//log(pattern+" COND FAILED:"+pair.Key);
 					return false;
 				}
 			}
@@ -370,16 +374,21 @@ namespace NinjaTrader.Strategy
 			conds.Add("FirstHeight",candles[1].height>=FIRST_STICK_HEIGHT);
 			conds.Add("SecondHeight",candles[0].height>=SECOND_STICK_HEIGHT);
 			conds.Add("StickingDown",candles[1].topBodyQuarter<=Math.Min(MIN(Opens[0],PRE_PERIOD)[2],MIN(Closes[0],PRE_PERIOD)[2]));
-			conds.Add("SecondCloseGTEQFirstBodyTop",candles[0].top>=candles[1].topBodyQuarter);
-			conds.Add("TopsMatch",candles[0].top >= candles[1].top-1/tf);
-			conds.Add("SharpDown",candles[2].top>=candles[1].top+(candles[2].body)/tf);
-			conds.Add("Preaverage",candles[1].preaverage>=candles[1].top+(candles[1].body/2)/tf);
+		//	conds.Add("SecondCloseGTEQFirstBodyTop",candles[0].top>=candles[1].topBodyQuarter);
+			conds.Add("TopsMatch",candles[0].top >= candles[1].top);
+			conds.Add("SharpDown",candles[2].top>=candles[1].top+(candles[2].body)/tf&&candles[1].low<candles[2].low-(candles[1].body/2)/tf);
+			conds.Add("Preaverage",candles[1].preaverage>=candles[1].top+(candles[1].body)/tf&&candles[1].premax>candles[1].high+(candles[1].height*2)/tf);
 			//conds.Add("Preaverage",preaverage>=candles[0].top+candles[1].body/tf);
-			conds.Add("FirstHaircut",candles[1].hair<=candles[1].body);
-			conds.Add("SecondHaircut",candles[0].hair<=candles[0].body+1);
-			logState(dumpCandlesticks()+dumpConditions(conds));
+			conds.Add("FirstHaircut",candles[1].hair<=1);
+			conds.Add("SecondHaircut",candles[0].hair<=1);
+			conds.Add("RelativeHeights",candles[0].height<=candles[1].height+2);
+			conds.Add("RelativeBodies",candles[0].body>=candles[1].body);
+			if(candles[1].body>0&&candles[1].beard>0)
+				conds.Add("BodyBeardInverse",candles[1].beard/3>=1/candles[1].body);
+			
+			//logState(dumpCandlesticks()+dumpConditions("ShpalyDownUp",conds));
 			if(evalConditions("ShpalyDownUp",conds)){
-				if(candles[1].height>=20){
+				/*if(candles[1].height>=20){
 					trade.target=20;
 					trade.stop=12;
 				}
@@ -390,7 +399,9 @@ namespace NinjaTrader.Strategy
 				else {
 					trade.target=4;
 					trade.stop=12;
-				}
+				}*/
+				trade.target=3;
+				trade.stop=18;
 				trade.signal="kickass shpaly downup";
 				return true;
 				
@@ -411,19 +422,23 @@ namespace NinjaTrader.Strategy
 			conds.Add("FirstHeight",candles[1].height>=FIRST_STICK_HEIGHT);
 			conds.Add("SecondHeight",candles[0].height>=SECOND_STICK_HEIGHT);
 			conds.Add("StickingUp",candles[1].bottomBodyQuarter>=Math.Max(MAX(Opens[0],PRE_PERIOD)[2],MAX(Closes[0],PRE_PERIOD)[2]));
-			conds.Add("SecondCloseLTEQFirstBodyBottom",candles[0].bottom<=candles[1].bottomBodyQuarter);
-			conds.Add("bottomsMatch",candles[0].bottom<=candles[1].bottom+1/tf);
+		//	conds.Add("SecondCloseLTEQFirstBodyBottom",candles[0].bottom<=candles[1].bottomBodyQuarter);
+			conds.Add("bottomsMatch",candles[0].bottom<=candles[1].bottom);
 			
-			conds.Add("SharpUp",candles[2].bottom<=candles[1].bottom-(candles[2].body)/tf);
-			conds.Add("Preaverage",candles[1].preaverage<=candles[1].bottom-candles[1].body/tf);
+			conds.Add("SharpUp",candles[2].bottom<=candles[1].bottom-(candles[2].body)/tf&&candles[1].high>candles[2].high+(candles[1].body/2)/tf);
+			conds.Add("Preaverage",candles[1].preaverage<=candles[1].bottom-(candles[1].body)/tf&&candles[1].premin<candles[1].low-(candles[1].height*2)/tf);
 			
 			//conds.Add("Preaverage",preaverage<=candles[0].bottom-candles[1].body/tf);
 			
-			conds.Add("FirstBeard",candles[1].beard<=candles[1].body);
-			conds.Add("SecondBeard",candles[0].beard<=candles[0].body+1);
-			//logState(dumpCandlesticks()+dumpConditions(conds));
+			conds.Add("FirstBeard",candles[1].beard<=1);
+			conds.Add("SecondBeard",candles[0].beard<=1);
+			conds.Add("RelativeHeights",candles[0].height<=candles[1].height+2);
+			conds.Add("RelativeBodies",candles[0].body>=candles[1].body);
+			if(candles[1].body>0&&candles[1].hair>0)
+				conds.Add("BodyHairInverse",candles[1].hair/3>=1/candles[1].body);
+			//logState(dumpConditions("ShpalyUpDown" ,conds));
 			if(evalConditions("ShpalyUpDown",conds)){
-				if(candles[1].height>=20){
+				/*if(candles[1].height>=20){
 					trade.target=20;
 					trade.stop=12;
 				}
@@ -434,7 +449,10 @@ namespace NinjaTrader.Strategy
 				else {
 					trade.target=4;
 					trade.stop=12;
-				}
+				}*/
+				trade.target=3;
+				trade.stop=19;
+
 				trade.signal="kickass shpaly updown";
 				return true;
 			}
@@ -572,25 +590,25 @@ namespace NinjaTrader.Strategy
 				}
 			}
 			if(pos>0&&!TradingLive){
-				if(tick.bid>=trade.entry+trade.target/tf){
+				if((tick.bid>=trade.entry+trade.target/tf)||(Closes[1][0]-1/tf>=trade.entry+trade.target/tf)){
 					processTradeEvent(TRADE_EVENT.EXIT_LONG);
 				}
-				else if(tick.bid<=trade.entry-trade.stop/tf){
+				else if((tick.bid<=trade.entry-trade.stop/tf)||(Closes[1][0]+1/tf<=trade.entry-trade.stop/tf)){
 					processTradeEvent(TRADE_EVENT.STOP_LONG);
 				}
-				else if(trade.type=="SWING_OUT"&&tick.ask<range.high-tm/tf&&tick.ask<trade.entry-2*tm/tf){
+				else if(trade.type=="SWING_OUT"&&(tick.ask<range.high-tm/tf||Closes[1][0]-1/tf<range.high-tm/tf)&&(tick.ask<trade.entry-2*tm/tf||Closes[1][0]-1/tf<trade.entry-2*tm/tf)){
 					log("SWING OUT BRAKE");
 					processTradeEvent(TRADE_EVENT.EXIT_LONG);
 				}
 			}
 			else if(pos<0&&!TradingLive){
-				if(tick.ask<=trade.entry-trade.target/tf){
+				if(tick.ask<=trade.entry-trade.target/tf||Closes[1][0]+1/tf<=trade.entry-trade.target/tf){
 					processTradeEvent(TRADE_EVENT.EXIT_SHORT);
 				}
-				else if(tick.ask>=trade.entry+trade.stop/tf){
+				else if(tick.ask>=trade.entry+trade.stop/tf||Closes[1][0]-1/tf>=trade.entry+trade.stop/tf){
 					processTradeEvent(TRADE_EVENT.STOP_SHORT);
 				}
-				else if(trade.type=="SWING_OUT"&&tick.bid>range.low+tm/tf&&tick.bid>trade.entry+2*tm/tf){
+				else if(trade.type=="SWING_OUT"&&(tick.bid>range.low+tm/tf||Closes[1][0]+1/tf>range.low+tm/tf)&&(tick.bid>trade.entry+2*tm/tf||Closes[1][0]+1/tf>trade.entry+2*tm/tf)){
 					log("SWING OUT BRAKE");
 					processTradeEvent(TRADE_EVENT.EXIT_SHORT);
 				}
