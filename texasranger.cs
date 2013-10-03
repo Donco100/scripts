@@ -468,17 +468,16 @@ namespace NinjaTrader.Strategy
 			}*/
 		}
 		protected  void processTradeEvent(TRADE_EVENT e){
-		int iTime=ToTime(Time[0]);
-			
-		if(iTime>82500&&iTime<100500)
-			return;
+		
 		switch(e){
 				case TRADE_EVENT.KICKASS_LONG:
+					trade.dir=1;
 					trade.type="KICKASS";
 					enterLongMarket();
 					logState("TRADE EVENT "+e);	
 					break;
 				case TRADE_EVENT.KICKASS_SHORT:
+					trade.dir=-1;
 					trade.type="KICKASS";
 					enterShortMarket();
 					logState("TRADE EVENT "+e);	
@@ -491,6 +490,7 @@ namespace NinjaTrader.Strategy
 					logState("TRADE EVENT "+e);	
 					break;
 				case TRADE_EVENT.SWING_OUT_LONG:
+					trade.dir=1;
 					trade.type="SWING_OUT";
 					trade.target=range.breakoutTarget;
 					trade.stop=19;//(tick.ask-range.low)*tf+tm*2;
@@ -500,6 +500,7 @@ namespace NinjaTrader.Strategy
 					logState("TRADE EVENT "+e);	
 					break;
 				case TRADE_EVENT.SWING_OUT_SHORT:
+					trade.dir=-1;
 					trade.type="SWING_OUT";
 					trade.target=range.breakoutTarget;
 					trade.stop=19;//(range.high-tick.bid)*tf+tm*2;
@@ -510,6 +511,7 @@ namespace NinjaTrader.Strategy
 					break;
 				case TRADE_EVENT.SWING_IN_LONG:
 					if(range.lastSwingInDir<=0){
+						trade.dir=1;
 						trade.type="SWING_IN";
 						//double t=Math.Max((range.high-range.median)/4,0.25);
 						double t=0.25;
@@ -525,6 +527,7 @@ namespace NinjaTrader.Strategy
 					break;	
 				case TRADE_EVENT.SWING_IN_SHORT:
 					if(range.lastSwingInDir<=0){
+						trade.dir=-1;
 						trade.type="SWING_IN";
 						//logState("DEBUG: tick.ask-range.median="+(tick.ask-range.median)+";tgt="+((tick.ask-range.median)*tf)+";target="+((tick.ask-range.median)*tf+tm));
 						
@@ -593,7 +596,7 @@ namespace NinjaTrader.Strategy
 					}
 				}
 			}
-			if(pos>0&&!TradingLive){
+			/*if(pos>0&&!TradingLive){
 				
 				if((tick.bid>=trade.entry+trade.target/tf)||(Closes[1][0]-1/tf>=trade.entry+trade.target/tf)){
 					processTradeEvent(TRADE_EVENT.EXIT_LONG);
@@ -617,7 +620,7 @@ namespace NinjaTrader.Strategy
 					log("SWING OUT BRAKE");
 					processTradeEvent(TRADE_EVENT.EXIT_SHORT);
 				}
-			}
+			}*/
 		}
 		protected override void reportLoss(){
 			if(!allowBounce)
@@ -643,17 +646,17 @@ namespace NinjaTrader.Strategy
 			
 		}
 		protected override int getExitStop(){
-			if(getPos()>0){
+			if(trade.dir>0){
 				if(trade.type=="SWING_OUT"){
-					return (int) Math.Max((int)(trade.entry-range.high)*tf+tm,6*tm);
+					return (int) Math.Max((int)(tick.ask-range.high)*tf+tm,6*tm);
 				}
 				else{
 					return (int) trade.stop;
 				}
 			}
-			else if (getPos()<0){
+			else if (trade.dir<0){
 				if(trade.type=="SWING_OUT"){
-					return(int) Math.Max((int)(range.low-trade.entry)*tf+tm,6*tm);
+					return(int) Math.Max((int)(range.low-tick.bid)*tf+tm,6*tm);
 					
 				}
 				else{
