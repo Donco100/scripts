@@ -146,12 +146,12 @@ namespace NinjaTrader.Strategy
 					return;
 				currentBar=CurrentBar;
 				tick0(CurrentBar);																					//misc bar 0 processing
-				if(!Historical&&tradingLive){
+				if(!Historical){
 					tick.bid=GetCurrentBid(1);
 					tick.ask=GetCurrentAsk(1);
 				}
 				barDetector();
-				if(!Historical&&tradingLive){
+				if(!Historical){
 					logState("HEARTBEAT["+strategyName+"]");
 				}
 			}
@@ -213,67 +213,83 @@ namespace NinjaTrader.Strategy
 		}
 		
 		protected void enterLong(double limit){
-			if(Historical&&tradingLive)
-				return;
+			/*if(Historical&&tradingLive)
+				return;*/
 			trade.pending=true;
 			ex.pendingLongEntry=true;
 			ex.pendingBar=bar;
 			ex.orderID=trade.signal;
+			log("SETTING LONG EXIT: TARGET="+getExitTarget()+";STOP="+getExitStop()+";SIGNAL="+trade.signal);			
+			SetProfitTarget(trade.signal,CalculationMode.Ticks,getExitTarget());
+			SetStopLoss(trade.signal,CalculationMode.Ticks,getExitStop(),false);
+			
 			ex.entryOrder=EnterLongLimit(OrderBarIndex,true,NumContracts,limit,ex.orderID);
 		}
 		protected void enterLongMarket(){
-			if(Historical&&tradingLive)
-				return;
+			/*if(Historical&&tradingLive)
+				return;*/
 			trade.pending=true;
 			ex.pendingLongEntry=true;
 			ex.pendingBar=bar;
 			ex.orderID=trade.signal;
+			log("SETTING LONG EXIT: TARGET="+getExitTarget()+";STOP="+getExitStop()+";SIGNAL="+trade.signal);			
+			SetProfitTarget(trade.signal,CalculationMode.Ticks,getExitTarget());
+			SetStopLoss(trade.signal,CalculationMode.Ticks,getExitStop(),false);
+			
 			ex.entryOrder=EnterLong(OrderBarIndex,NumContracts,ex.orderID);
 		}
 		protected void enterShort( double limit){
-			if(Historical&&tradingLive)
-				return;
+			/*if(Historical&&tradingLive)
+				return;*/
 			trade.pending=true;
 			ex.pendingShortEntry=true;
 			ex.pendingBar=bar;
 			ex.orderID=trade.signal;
+			log("SETTING SHORT EXIT: TARGET="+getExitTarget()+";STOP="+getExitStop()+";SIGNAL="+trade.signal);			
+			SetProfitTarget(trade.signal,CalculationMode.Ticks,getExitTarget());
+			SetStopLoss(trade.signal,CalculationMode.Ticks,getExitStop(),false);
+			
 			ex.entryOrder=EnterShortLimit(OrderBarIndex,true,NumContracts,limit,ex.orderID);
 		}
 		protected void enterShortMarket(){
-			if(Historical&&tradingLive)
-				return;
+			/*if(Historical&&tradingLive)
+				return;*/
 			trade.pending=true;			ex.pendingShortEntry=true;
 			ex.pendingBar=bar;
 			ex.orderID=trade.signal;
+			log("SETTING SHORT EXIT: TARGET="+getExitTarget()+";STOP="+getExitStop()+";SIGNAL="+trade.signal);			
+			SetProfitTarget(trade.signal,CalculationMode.Ticks,getExitTarget());
+			SetStopLoss(trade.signal,CalculationMode.Ticks,getExitStop(),false);
+			
 			ex.entryOrder=EnterShort(OrderBarIndex,NumContracts,ex.orderID);
 		}
 		protected void exitShort(double limit){
-			if(Historical&&tradingLive)
-				return;
+			/*if(Historical&&tradingLive)
+				return;*/
 			trade.pending=true;
 			ex.pendingShortExit=true;
 			ex.pendingBar=bar;
 			ex.exitOrder=ExitShortLimit(OrderBarIndex,true,NumContracts,limit,ex.orderID,ex.orderID);
 		}
 		protected void exitShortMarket(){
-			if(Historical&&tradingLive)
-				return;
+			/*if(Historical&&tradingLive)
+				return;*/
 			trade.pending=true;
 			ex.pendingShortExit=true;
 			ex.pendingBar=bar;
 			ex.exitOrder=ExitShort(OrderBarIndex,NumContracts,ex.orderID,ex.orderID);
 		}
 		protected void exitLong(double limit){
-			if(Historical&&tradingLive)
-				return;
+			/*if(Historical&&tradingLive)
+				return;*/
 			trade.pending=true;
 			ex.pendingLongExit=true;
 			ex.pendingBar=bar;
 			ex.exitOrder=ExitLongLimit(OrderBarIndex,true,NumContracts,limit,ex.orderID,ex.orderID);
 		}
 		protected void exitLongMarket(){
-			if(Historical&&tradingLive)
-				return;
+			/*if(Historical&&tradingLive)
+				return;*/
 			trade.pending=true;
 			ex.pendingLongExit=true;
 			ex.pendingBar=bar;
@@ -324,11 +340,11 @@ namespace NinjaTrader.Strategy
 						logState("POSITION: ENTERED LONG");
 						trade.pending=false;
 						ex.pendingLongEntry=false;
-						if(tradingLive){
+						/*if(tradingLive){
 							log("SETTING LONG EXIT: TARGET="+getExitTarget()+";STOP="+getExitStop()+";SIGNAL="+trade.signal);			
 							SetProfitTarget(trade.signal,CalculationMode.Ticks,getExitTarget());
 							SetStopLoss(trade.signal,CalculationMode.Ticks,getExitStop(),false);
-						}
+						}*/
 					}
 				}
 				else if(ex.pendingShortEntry){
@@ -337,11 +353,11 @@ namespace NinjaTrader.Strategy
 						trade.pending=false;
 						ex.pendingShortEntry=false;
 							
-						if(tradingLive){
+						/*if(tradingLive){
 							log("SETTING SHORT EXIT: TARGET="+getExitTarget()+";STOP="+getExitStop()+";SIGNAL="+trade.signal);			
 							SetProfitTarget(trade.signal,CalculationMode.Ticks,getExitTarget());
 							SetStopLoss(trade.signal,CalculationMode.Ticks,getExitStop(),false);
-						}
+						}*/
 					}
 				}
 			}
@@ -353,8 +369,8 @@ namespace NinjaTrader.Strategy
 					trade.entry=execution.Order.AvgFillPrice;
 					trade.enteredBar=bar;
 					log("EXECUTION: ENTERED at "+trade.entry);
-					trade.pending=false;
-						ex.pendingShortEntry=false;
+					//trade.pending=false;
+					//ex.pendingShortEntry=false;
 				}
 				else{
 					if(execution.Order.OrderAction.CompareTo(OrderAction.Sell)==0){
@@ -373,7 +389,7 @@ namespace NinjaTrader.Strategy
 					}else if(ex.pendingShortExit){
 						gain=(trade.entry-currentExit);
 					}
-					double net_gain=gain*4*12.5-4;
+					double net_gain=(gain*4*12.5-4)*execution.Quantity;
 					gainTotal+=net_gain;
 					log("EXITED at "+currentExit+";$$$$$$ gain="+gain+";net="+net_gain.ToString("C")+"; $$$$$ total="+gainTotal.ToString("C"));
 				

@@ -109,8 +109,8 @@ namespace NinjaTrader.Strategy
 			if(!Historical){
 				if(virgin){
 					virgin=false;
-					range.active=false;
-					log("RESET VIRGIN");
+					//range.active=false;
+					log("LIVE!");
 				}
 			}
 			//logState("barDetector");
@@ -513,6 +513,7 @@ namespace NinjaTrader.Strategy
 					if(range.lastSwingInDir<=0){
 						trade.dir=1;
 						trade.type="SWING_IN";
+						trade.signal="LongSwingIn";
 						//double t=Math.Max((range.high-range.median)/4,0.25);
 						double t=0.25;
 						trade.target=(int)(Math.Round(range.median-tick.bid+t,0)*tf);
@@ -529,6 +530,7 @@ namespace NinjaTrader.Strategy
 					if(range.lastSwingInDir<=0){
 						trade.dir=-1;
 						trade.type="SWING_IN";
+						trade.signal="ShortSwingIn";
 						//logState("DEBUG: tick.ask-range.median="+(tick.ask-range.median)+";tgt="+((tick.ask-range.median)*tf)+";target="+((tick.ask-range.median)*tf+tm));
 						
 						//double t=Math.Max((range.median-range.low)/4,0.25);
@@ -648,7 +650,7 @@ namespace NinjaTrader.Strategy
 		protected override int getExitStop(){
 			if(trade.dir>0){
 				if(trade.type=="SWING_OUT"){
-					return (int) Math.Max((int)(tick.ask-range.high)*tf+tm,6*tm);
+					return (int) Math.Max((int)(tick.ask-range.high)*tf+tm,12*tm);
 				}
 				else{
 					return (int) trade.stop;
@@ -656,7 +658,7 @@ namespace NinjaTrader.Strategy
 			}
 			else if (trade.dir<0){
 				if(trade.type=="SWING_OUT"){
-					return(int) Math.Max((int)(range.low-tick.bid)*tf+tm,6*tm);
+					return(int) Math.Max((int)(range.low-tick.bid)*tf+tm,12*tm);
 					
 				}
 				else{
