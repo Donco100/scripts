@@ -595,7 +595,7 @@ namespace NinjaTrader.Strategy
 				else if(tick.bid<=trade.entry-trade.stop/tf){
 					processTradeEvent(TRADE_EVENT.STOP_LONG);
 				}
-				else if(trade.type==TRADE_TYPE.SWING_OUT&&tick.ask<range.high-tm/tf&&tick.ask<trade.entry-6*tm/tf){
+				else if(trade.type==TRADE_TYPE.SWING_OUT&&tick.ask<range.high-tm/tf&&tick.ask<trade.entry-19*tm/tf){
 					log("SWING OUT BRAKE");
 					processTradeEvent(TRADE_EVENT.EXIT_LONG);
 				}
@@ -607,7 +607,7 @@ namespace NinjaTrader.Strategy
 				else if(tick.ask>=trade.entry+trade.stop/tf){
 					processTradeEvent(TRADE_EVENT.STOP_SHORT);
 				}
-				else if(trade.type==TRADE_TYPE.SWING_OUT&&tick.bid>range.low+tm/tf&&tick.bid>trade.entry+6*tm/tf){
+				else if(trade.type==TRADE_TYPE.SWING_OUT&&tick.bid>range.low+tm/tf&&tick.bid>trade.entry+19*tm/tf){
 					log("SWING OUT BRAKE");
 					processTradeEvent(TRADE_EVENT.EXIT_SHORT);
 				}

@@ -108,7 +108,7 @@ namespace NinjaTrader.Strategy
         #endregion
 		protected abstract void start();
 		protected override void OnStartUp(){
-			start()
+			start();
 			initLog();
 			log("START "+strategyName);
 			
@@ -151,6 +151,9 @@ namespace NinjaTrader.Strategy
 					tick.ask=GetCurrentAsk(1);
 				}
 				barDetector();
+				if(!Historical&&tradingLive){
+					logState("HEARTBEAT["+strategyName+"]");
+				}
 			}
 			if(BarsInProgress==4||BarsInProgress==5||BarsInProgress==0){
 				if(Historical){ // when backtesting to the trades
@@ -197,6 +200,11 @@ namespace NinjaTrader.Strategy
 				if(ex.pendingLongEntry||ex.pendingShortEntry){
 					if(ex.entryOrder!=null){
 						CancelOrder(ex.entryOrder);
+						if(Historical){
+							ex.pendingLongEntry=false;
+							ex.pendingShortEntry=false;
+							trade.pending=false;
+						}
 						log("<<< CANCELLING ENTRY ORDER >>> pendingBar="+ex.pendingBar
 							+";CurrentBar"+CurrentBar+";ask="+tick.ask+";bid="+tick.bid);
 					}
@@ -234,8 +242,7 @@ namespace NinjaTrader.Strategy
 		protected void enterShortMarket(){
 			if(Historical&&tradingLive)
 				return;
-			trade.pending=true;
-			ex.pendingShortEntry=true;
+			trade.pending=true;			ex.pendingShortEntry=true;
 			ex.pendingBar=bar;
 			ex.orderID=trade.signal;
 			ex.entryOrder=EnterShort(OrderBarIndex,NumContracts,ex.orderID);
@@ -329,6 +336,7 @@ namespace NinjaTrader.Strategy
 						logState("POSITION: ENTERED SHORT");
 						trade.pending=false;
 						ex.pendingShortEntry=false;
+							
 						if(tradingLive){
 							log("SETTING SHORT EXIT: TARGET="+getExitTarget()+";STOP="+getExitStop()+";SIGNAL="+trade.signal);			
 							SetProfitTarget(trade.signal,CalculationMode.Ticks,getExitTarget());
@@ -345,6 +353,8 @@ namespace NinjaTrader.Strategy
 					trade.entry=execution.Order.AvgFillPrice;
 					trade.enteredBar=bar;
 					log("EXECUTION: ENTERED at "+trade.entry);
+					trade.pending=false;
+						ex.pendingShortEntry=false;
 				}
 				else{
 					if(execution.Order.OrderAction.CompareTo(OrderAction.Sell)==0){
@@ -364,7 +374,6 @@ namespace NinjaTrader.Strategy
 						gain=(trade.entry-currentExit);
 					}
 					double net_gain=gain*4*12.5-4;
-					
 					gainTotal+=net_gain;
 					log("EXITED at "+currentExit+";$$$$$$ gain="+gain+";net="+net_gain.ToString("C")+"; $$$$$ total="+gainTotal.ToString("C"));
 				
@@ -376,9 +385,18 @@ namespace NinjaTrader.Strategy
 					}	
 					ex.exitOrder=null;		
 					ex.stopOrder=null;
+					if(net_gain<0){
+						reportLoss();
+					}
+					else{
+						reportWin();
+					}
+			
 				}	
 			}
 		}
+		protected virtual void reportLoss(){}
+		protected virtual void reportWin(){}
 		protected override void OnTermination(){
   			string s="hello";
 			//string s="Finished Simulated Session "+strategyName+"  "+ToDay(firstTime)+"-"+ToDay(t)+"\n 	Range="+Range+";RangePeriod="+RangePeriod+";MinRangePeriod="+minRangePeriod+"\n GainTotal="+gainTotal.ToString("c");

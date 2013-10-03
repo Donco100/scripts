@@ -99,6 +99,7 @@ namespace NinjaTrader.Strategy
 		private bool 	allowPreBounce=false;
 		private bool	allowLongTradesKill=true;
 		private bool    allowKickass=false;
+		private bool 	allowBounce=true;
 		bool 		virgin		=	true;																			//detects first live tick to reset any existing ranges
 		Range		range		=	new Range();
 		Candle[]    candles		=	new Candle[3];
@@ -467,7 +468,10 @@ namespace NinjaTrader.Strategy
 			}*/
 		}
 		protected  void processTradeEvent(TRADE_EVENT e){
-		
+		int iTime=ToTime(Time[0]);
+			
+		if(iTime>82500&&iTime<100500)
+			return;
 		switch(e){
 				case TRADE_EVENT.KICKASS_LONG:
 					trade.type="KICKASS";
@@ -489,7 +493,7 @@ namespace NinjaTrader.Strategy
 				case TRADE_EVENT.SWING_OUT_LONG:
 					trade.type="SWING_OUT";
 					trade.target=range.breakoutTarget;
-					trade.stop=(tick.ask-range.low)*tf+tm*2;
+					trade.stop=19;//(tick.ask-range.low)*tf+tm*2;
 					trade.signal="LongSwingOut";
 					enterLongMarket();
 					//enterLong(tick.bid);
@@ -498,7 +502,7 @@ namespace NinjaTrader.Strategy
 				case TRADE_EVENT.SWING_OUT_SHORT:
 					trade.type="SWING_OUT";
 					trade.target=range.breakoutTarget;
-					trade.stop=(range.high-tick.bid)*tf+tm*2;
+					trade.stop=19;//(range.high-tick.bid)*tf+tm*2;
 					trade.signal="ShortSwingOut";
 					enterShortMarket();
 					//enterShort(tick.ask);
@@ -590,13 +594,14 @@ namespace NinjaTrader.Strategy
 				}
 			}
 			if(pos>0&&!TradingLive){
+				
 				if((tick.bid>=trade.entry+trade.target/tf)||(Closes[1][0]-1/tf>=trade.entry+trade.target/tf)){
 					processTradeEvent(TRADE_EVENT.EXIT_LONG);
 				}
 				else if((tick.bid<=trade.entry-trade.stop/tf)||(Closes[1][0]+1/tf<=trade.entry-trade.stop/tf)){
 					processTradeEvent(TRADE_EVENT.STOP_LONG);
 				}
-				else if(trade.type=="SWING_OUT"&&(tick.ask<range.high-tm/tf||Closes[1][0]-1/tf<range.high-tm/tf)&&(tick.ask<trade.entry-2*tm/tf||Closes[1][0]-1/tf<trade.entry-2*tm/tf)){
+				else if(trade.type=="SWING_OUT"&&(tick.ask<range.high-tm/tf||Closes[1][0]-1/tf<range.high-tm/tf)&&(tick.ask<trade.entry-6*tm/tf||Closes[1][0]-1/tf<trade.entry-6*tm/tf)){
 					log("SWING OUT BRAKE");
 					processTradeEvent(TRADE_EVENT.EXIT_LONG);
 				}
@@ -608,11 +613,29 @@ namespace NinjaTrader.Strategy
 				else if(tick.ask>=trade.entry+trade.stop/tf||Closes[1][0]-1/tf>=trade.entry+trade.stop/tf){
 					processTradeEvent(TRADE_EVENT.STOP_SHORT);
 				}
-				else if(trade.type=="SWING_OUT"&&(tick.bid>range.low+tm/tf||Closes[1][0]+1/tf>range.low+tm/tf)&&(tick.bid>trade.entry+2*tm/tf||Closes[1][0]+1/tf>trade.entry+2*tm/tf)){
+				else if(trade.type=="SWING_OUT"&&(tick.bid>range.low+tm/tf||Closes[1][0]+1/tf>range.low+tm/tf)&&(tick.bid>trade.entry+6*tm/tf||Closes[1][0]+1/tf>trade.entry+6*tm/tf)){
 					log("SWING OUT BRAKE");
 					processTradeEvent(TRADE_EVENT.EXIT_SHORT);
 				}
 			}
+		}
+		protected override void reportLoss(){
+			if(!allowBounce)
+				return;
+			if(trade.signal=="LongSwingOut"){
+				trade.target=trade.stop;
+				//trade.stop=12;
+				trade.signal="bounce down";
+				processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
+			}
+			else if(trade.signal=="ShortSwingOut"){
+				trade.target=trade.stop;
+				//trade.stop=12;
+				trade.signal="bounce up";
+				processTradeEvent(TRADE_EVENT.KICKASS_LONG);			
+			}
+		}
+		protected override void reportWin(){
 		}
 		protected override int getExitTarget(){
 			
@@ -622,7 +645,7 @@ namespace NinjaTrader.Strategy
 		protected override int getExitStop(){
 			if(getPos()>0){
 				if(trade.type=="SWING_OUT"){
-					return (int) Math.Max((int)(trade.entry-range.high)*tf+tm,2*tm);
+					return (int) Math.Max((int)(trade.entry-range.high)*tf+tm,6*tm);
 				}
 				else{
 					return (int) trade.stop;
@@ -630,7 +653,7 @@ namespace NinjaTrader.Strategy
 			}
 			else if (getPos()<0){
 				if(trade.type=="SWING_OUT"){
-					return(int) Math.Max((int)(range.low-trade.entry)*tf+tm,2*tm);
+					return(int) Math.Max((int)(range.low-trade.entry)*tf+tm,6*tm);
 					
 				}
 				else{
@@ -710,6 +733,13 @@ namespace NinjaTrader.Strategy
         {
             get { return allowKickass; }
             set {  allowKickass= value; }
+        }
+		[Description("Enables allowKickass indicator")]
+        [GridCategory("Parameters")]
+        public bool AllowBounce
+        {
+            get { return allowBounce; }
+            set {  allowBounce= value; }
         }
 		
         #endregion
