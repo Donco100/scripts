@@ -100,6 +100,7 @@ namespace NinjaTrader.Strategy
 		private bool	allowLongTradesKill=true;
 		private bool    allowKickass=false;
 		private bool 	allowBounce=true;
+		private int    maxLookBackEngulfik=6;
 		bool 		virgin		=	true;																			//detects first live tick to reset any existing ranges
 		Range		range		=	new Range();
 		Candle[]    candles		=	new Candle[3];
@@ -291,6 +292,8 @@ namespace NinjaTrader.Strategy
 					processTradeEvent(TRADE_EVENT.KICKASS_LONG);
 				else if(shpalyUpDown())
 					processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
+				logState("DEBUG BEGIN GULFIK");	
+				engulfik(bar,1,0);	
 			}
 		}
 		//This method measures and deconstructs last three candles to be used by kickass indicators
@@ -361,6 +364,111 @@ namespace NinjaTrader.Strategy
 				}
 			}
 			return true;
+		}
+		protected bool engulfik(int b, int dir, int r){
+			log("DEBUG: ENGULFIK b="+b+";r="+r);
+			if(b==maxLookBackEngulfik){																		
+				return false;
+			}
+			
+			if(engulfik(b+1,dir,r+1)){																			//check if the next bar is engulfik with a higher priority
+				if(r>=0)																						//if I am not the top level, just pass the result up	
+					return true;
+				else
+					return false;																				//if I am the top level, it is not good to have inner engulf
+			}
+		
+			//now check if my bar is engulfik 	
+			if(dir==1&&Opens[0][b]>Closes[0][b]){																//cannot be an engufik if counter-direction color
+				return false;
+			}
+			else if (dir==-1&&Opens[0][b]<Closes[0][b]){
+				return false;
+			}
+			double top=Math.Max(Opens[0][b],Closes[0][b]);
+			double bottom=Math.Min(Opens[0][b],Closes[0][b]);
+			if(dir==1)
+				return engulfik2(b,dir,Opens[0][b],Closes[0][b],Closes[0][b],r);								//secondary recursion to see if I am the winner
+			else{
+				return engulfik2(b,dir,Closes[0][b],Opens[0][b],Closes[0][b],r);
+			}			
+		}
+		protected bool engulfik2(int b, int dir, double min,double max,double level, int r){
+			log("      DEBUG: ENGULFIK2 b="+b+";min="+min+";max="+max+";level="+level+";r="+r);
+			//1. Check for new minimum (for long engulfik)
+			//2. Check for new maximum  
+			//3. Check if next bar top is above me;
+			if(b==maxLookBackEngulfik){																		
+				return false;
+			}
+			//my top and bot
+			double lTop=Math.Min(min,Math.Min(Opens[0][b],Closes[0][b]));
+			double lBot=Math.Max(max,Math.Max(Opens[0][b],Closes[0][b]));
+			//next bat
+			double nBot=Math.Max(min,Math.Max(Opens[0][b+1],Closes[0][b+1]));
+			double nTop=Math.Max(max,Math.Max(Opens[0][b+1],Closes[0][b+1]));
+				
+			if(dir>0){
+				if(nTop>level){	//found first above the level
+					if(engulfik3(b+1,dir,lBot,nTop,level)) {// 3d recursion to check if it will climb to twice level-lMin befor hitting new min
+						if(r==0)	//if checking on behalf of top level primary recursion
+							CandleOutlineColorSeries[b]=Color.Chartreuse;
+						return true;
+					}
+				}
+				else{
+					if(engulfik2(b+1,dir,lBot,lTop,level,r)){
+						if(r==0)
+							CandleOutlineColorSeries[b]=Color.Chartreuse;
+						return true;
+					}else {
+						return false;
+					}
+				}
+			}
+			else{
+				
+				if(nBot<level){
+					if(engulfik3(b+1,dir,lTop,nBot,level)){ // end scenario
+						if(r==0)
+							CandleOutlineColorSeries[b]=Color.Chartreuse;
+						return true;
+					}
+				}
+				else {
+					if(engulfik2(b+1,dir,lTop,lBot,level,r)){
+						if(r==0)
+							CandleOutlineColorSeries[b]=Color.Chartreuse;
+					}
+					else{
+						return false;
+					}
+					
+				}
+			}
+			return false;
+		}
+		protected bool engulfik3(int b, int dir, double min,double max,double level){
+			log("      DEBUG: ENGULFIK3 b="+b+";min="+min+";max="+max+";level="+level);
+			if(b==255) //max lookback
+				return false;
+			double lBot=Math.Max(min,Math.Max(Opens[0][b+1],Closes[0][b+1]));
+			double lTop=Math.Max(max,Math.Max(Opens[0][b+1],Closes[0][b+1]));
+					
+			if(dir>0){
+				if(lTop>level)
+					return true;
+				if(lBot<min)
+					return false;
+				return engulfik3(b+1,dir,min,max,level);	
+			}			
+			else{
+				if(lBot<level)
+					return true;
+				if(lTop>min)
+					return false;
+			}
+			return false;
 		}
 		protected bool shpalyDownUp(){
 			const int PRE_PERIOD=6;																					//sticks
