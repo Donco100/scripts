@@ -100,7 +100,10 @@ namespace NinjaTrader.Strategy
 		private bool	allowLongTradesKill=true;
 		private bool    allowKickass=false;
 		private bool 	allowBounce=true;
-		private int    maxLookBackEngulfik=6;
+		private bool    allowGulfik=true;
+		private int     maxLookBackEngulfik=6;
+		private int 	maxExtendLookBackEngulfik=36;
+
 		bool 		virgin		=	true;																			//detects first live tick to reset any existing ranges
 		Range		range		=	new Range();
 		Candle[]    candles		=	new Candle[3];
@@ -292,8 +295,25 @@ namespace NinjaTrader.Strategy
 					processTradeEvent(TRADE_EVENT.KICKASS_LONG);
 				else if(shpalyUpDown())
 					processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
+				
+			}
+			if(pos==0&&allowGulfik){
 				logState("DEBUG BEGIN GULFIK");	
-				engulfik(bar,1,0);	
+				if(engulfik(0,1,0)){
+					trade.dir=1;
+					trade.target=3;
+					trade.stop=18;
+					trade.signal="kickass gulfik downup";
+					processTradeEvent(TRADE_EVENT.KICKASS_LONG);
+				}
+				else if(engulfik(0,-1,0)){
+					trade.dir=-1;
+					trade.target=3;
+					trade.stop=18;
+					trade.signal="kickass gulfik updown";
+					processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
+				}
+
 			}
 		}
 		//This method measures and deconstructs last three candles to be used by kickass indicators
@@ -366,81 +386,118 @@ namespace NinjaTrader.Strategy
 			return true;
 		}
 		protected bool engulfik(int b, int dir, int r){
-			log("DEBUG: ENGULFIK b="+b+";r="+r);
-			if(b==maxLookBackEngulfik){																		
+			log("DEBUG: ENGULFIK b="+b+";dir="+dir+";r="+r+";Open="+Opens[0][b]+";Close="+Closes[0][b]);
+			if(b>=maxLookBackEngulfik){																		
 				return false;
 			}
 			
 			if(engulfik(b+1,dir,r+1)){																			//check if the next bar is engulfik with a higher priority
-				if(r>=0)																						//if I am not the top level, just pass the result up	
+				if(r>0){																						//if I am not the top level, just pass the result up	
+					log("TRUE");
 					return true;
-				else
+				}
+				else{
+					log("FALSE");	
 					return false;																				//if I am the top level, it is not good to have inner engulf
+				}
 			}
-		
+			log("GULFIK1 - PAST PRIMARY ITER r="+r);
 			//now check if my bar is engulfik 	
 			if(dir==1&&Opens[0][b]>Closes[0][b]){																//cannot be an engufik if counter-direction color
+				log("FALSE - counterdir, Opens[0][b]="+Opens[0][b]+";Closes[0][b]="+Closes[0][b]);
 				return false;
 			}
 			else if (dir==-1&&Opens[0][b]<Closes[0][b]){
+				log("FALSE");
 				return false;
 			}
 			double top=Math.Max(Opens[0][b],Closes[0][b]);
 			double bottom=Math.Min(Opens[0][b],Closes[0][b]);
-			if(dir==1)
-				return engulfik2(b,dir,Opens[0][b],Closes[0][b],Closes[0][b],r);								//secondary recursion to see if I am the winner
+			if(dir==1){
+				if(engulfik2(b,dir,Opens[0][b],Closes[0][b],Closes[0][b],r)){							//secondary recursion to see if I am the winner
+					log("TRUE");
+					return true;
+				}
+				else{
+					log("FALSE gulfik2 failed");
+					return false;
+				}
+				
+			}
 			else{
-				return engulfik2(b,dir,Closes[0][b],Opens[0][b],Closes[0][b],r);
+				if(engulfik2(b,dir,Opens[0][b],Closes[0][b],Closes[0][b],r)){
+					log("TRUE");
+					return true;
+				}
+				else{
+					log("FALSE");
+					return false;
+				}
 			}			
 		}
-		protected bool engulfik2(int b, int dir, double min,double max,double level, int r){
-			log("      DEBUG: ENGULFIK2 b="+b+";min="+min+";max="+max+";level="+level+";r="+r);
+		protected bool engulfik2(int b, int dir, double low_water,double high_water,double level, int r){
+			log("      DEBUG: ENGULFIK2 b="+b+";dir="+dir+";low_water="+low_water+";high_water="+high_water+";level="+level+";r="+r+";Open="+Opens[0][b]+";Close="+Closes[0][b]);
+
+			
 			//1. Check for new minimum (for long engulfik)
 			//2. Check for new maximum  
 			//3. Check if next bar top is above me;
-			if(b==maxLookBackEngulfik){																		
+			if(b>=maxLookBackEngulfik){	
+				log("      FALSE");
 				return false;
 			}
 			//my top and bot
-			double lTop=Math.Min(min,Math.Min(Opens[0][b],Closes[0][b]));
-			double lBot=Math.Max(max,Math.Max(Opens[0][b],Closes[0][b]));
-			//next bat
-			double nBot=Math.Max(min,Math.Max(Opens[0][b+1],Closes[0][b+1]));
-			double nTop=Math.Max(max,Math.Max(Opens[0][b+1],Closes[0][b+1]));
+			double lTop=Math.Max(Opens[0][b],Closes[0][b]);
+			double lBot=Math.Min(Opens[0][b],Closes[0][b]);
+
+			//next bar
+			double nBot=Math.Min(Opens[0][b+1],Closes[0][b+1]);
+			double nTop=Math.Max(Opens[0][b+1],Closes[0][b+1]);
 				
 			if(dir>0){
-				if(nTop>level){	//found first above the level
-					if(engulfik3(b+1,dir,lBot,nTop,level)) {// 3d recursion to check if it will climb to twice level-lMin befor hitting new min
+				low_water=Math.Min(low_water,lBot);
+				high_water=Math.Max(high_water,lTop);
+				if(nTop>level&&level-low_water>3/tf){	//found first above the level
+					
+					if(engulfik3(b+1,dir,low_water,nTop,level)) {// 3d recursion to check if it will climb to twice level-lMin befor hitting new min
 						if(r==0)	//if checking on behalf of top level primary recursion
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
+						log("      TRUE - WINNER");
 						return true;
 					}
 				}
 				else{
-					if(engulfik2(b+1,dir,lBot,lTop,level,r)){
+					if(nTop<level-1/tf&&engulfik2(b+1,dir,low_water,high_water,level,r)){
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
+						log("      TRUE - WINNER");	
 						return true;
 					}else {
+						log("      FALSE");
 						return false;
 					}
 				}
 			}
 			else{
-				
-				if(nBot<level){
-					if(engulfik3(b+1,dir,lTop,nBot,level)){ // end scenario
+				low_water=Math.Max(low_water,lTop);
+				high_water=Math.Min(high_water,lBot);
+				if(nBot<level&&low_water-level>3/tf){
+					if(engulfik3(b+1,dir,low_water,nBot,level)){ // end scenario
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
+						log("      TRUE - WINNER");
 						return true;
 					}
 				}
 				else {
-					if(engulfik2(b+1,dir,lTop,lBot,level,r)){
+					if(nBot>level+1/tf&&engulfik2(b+1,dir,low_water,high_water,level,r)){
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
+						log("      TRUE - WINNER");		
+						return true;	
 					}
 					else{
+						log("      FALSE");
 						return false;
 					}
 					
@@ -449,24 +506,47 @@ namespace NinjaTrader.Strategy
 			return false;
 		}
 		protected bool engulfik3(int b, int dir, double min,double max,double level){
-			log("      DEBUG: ENGULFIK3 b="+b+";min="+min+";max="+max+";level="+level);
-			if(b==255) //max lookback
+		
+			if(b>=maxExtendLookBackEngulfik) //max lookback
 				return false;
-			double lBot=Math.Max(min,Math.Max(Opens[0][b+1],Closes[0][b+1]));
-			double lTop=Math.Max(max,Math.Max(Opens[0][b+1],Closes[0][b+1]));
-					
+			double lBot=Math.Min(Opens[0][b],Closes[0][b]);
+			double lTop=Math.Max(Opens[0][b],Closes[0][b]);
+			log("            DEBUG: ENGULFIK3 b="+b+";dir="+dir+";min="+min+";max="+max+";level="+level+";Open="+Opens[0][b]+";Close="+Closes[0][b]+";lBot="+lBot+";lTop="+lTop);
 			if(dir>0){
-				if(lTop>level)
+				/*if(level-min<1/tf){
+					log("FALSE - level<=min");
+					return false;	
+				}*/
+				/*if(level>=lTop){
+					log("FALSE - below level");
+					return false;	
+
+				}*/
+				if(lTop>level&&lTop>min&&lTop-min>(level-min)*3){
+					log("            TRUE");
 					return true;
-				if(lBot<min)
+				}
+				if(lBot<min){
+					log("            FALSE");
 					return false;
+				}
 				return engulfik3(b+1,dir,min,max,level);	
 			}			
 			else{
-				if(lBot<level)
+				if(lBot<level&&lBot<min&&min-lBot>(min-level)*3){
+					log("            TRUE");
 					return true;
-				if(lTop>min)
+				}
+				/*if(level<=lBot){
+					log("FALSE - above level");
+					return false;	
+
+				}*/
+				if(lTop>min){
+					log("            FALSE");
 					return false;
+				}
+				return engulfik3(b+1,dir,min,max,level);	
 			}
 			return false;
 		}
@@ -855,6 +935,29 @@ namespace NinjaTrader.Strategy
             set {  allowBounce= value; }
         }
 		
+		[Description("Enables Gulfik indicator")]
+        [GridCategory("Parameters")]
+        public bool AllowGulfik
+        {
+            get { return allowGulfik; }
+            set {  allowGulfik= value; }
+        }
+		[Description("How far to go looking for gulfik")]
+        [GridCategory("Parameters")]
+        public int MaxLookBackEngulfik
+        {
+            get { return maxLookBackEngulfik; }
+            set {  maxLookBackEngulfik= value; }
+        }
+        [Description("How far to go looking for the peak before gulfik")]
+        [GridCategory("Parameters")]
+        public int MaxExtendLookBackEngulfik
+        {
+            get { return maxExtendLookBackEngulfik; }
+            set {  maxExtendLookBackEngulfik= value; }
+        }
+
+
         #endregion
     }
 	
