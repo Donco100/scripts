@@ -107,6 +107,7 @@ namespace NinjaTrader.Strategy
 		bool 		virgin		=	true;																			//detects first live tick to reset any existing ranges
 		Range		range		=	new Range();
 		Candle[]    candles		=	new Candle[3];
+		bool debug=false;
 		#endregion			
 		protected override void start(){}		
 		protected  override void barDetector(){	
@@ -302,14 +303,14 @@ namespace NinjaTrader.Strategy
 				if(engulfik(0,1,0)){
 					trade.dir=1;
 					trade.target=3;
-					trade.stop=18;
+					trade.stop=6;
 					trade.signal="kickass gulfik downup";
 					processTradeEvent(TRADE_EVENT.KICKASS_LONG);
 				}
 				else if(engulfik(0,-1,0)){
 					trade.dir=-1;
 					trade.target=3;
-					trade.stop=18;
+					trade.stop=6;
 					trade.signal="kickass gulfik updown";
 					processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
 				}
@@ -386,64 +387,76 @@ namespace NinjaTrader.Strategy
 			return true;
 		}
 		protected bool engulfik(int b, int dir, int r){
-			log("DEBUG: ENGULFIK b="+b+";dir="+dir+";r="+r+";Open="+Opens[0][b]+";Close="+Closes[0][b]);
+			if(debug)
+			 log("DEBUG: ENGULFIK b="+b+";dir="+dir+";r="+r+";Open="+Opens[0][b]+";Close="+Closes[0][b]);
 			if(b>=maxLookBackEngulfik){																		
 				return false;
 			}
 			
 			if(engulfik(b+1,dir,r+1)){																			//check if the next bar is engulfik with a higher priority
-				if(r>0){																						//if I am not the top level, just pass the result up	
-					log("TRUE");
+				if(r>0){
+					if(debug)																						//if I am not the top level, just pass the result up	
+						log("TRUE");
 					return true;
 				}
 				else{
-					log("FALSE");	
+					if(debug)
+						log("FALSE");	
 					return false;																				//if I am the top level, it is not good to have inner engulf
 				}
 			}
-			log("GULFIK1 - PAST PRIMARY ITER r="+r);
+			if(debug)
+				log("GULFIK1 - PAST PRIMARY ITER r="+r);
 			//now check if my bar is engulfik 	
-			if(dir==1&&Opens[0][b]>Closes[0][b]){																//cannot be an engufik if counter-direction color
-				log("FALSE - counterdir, Opens[0][b]="+Opens[0][b]+";Closes[0][b]="+Closes[0][b]);
+			if(dir==1&&Opens[0][b]>Closes[0][b]){	
+				if(debug)															//cannot be an engufik if counter-direction color
+					log("FALSE - counterdir, Opens[0][b]="+Opens[0][b]+";Closes[0][b]="+Closes[0][b]);
 				return false;
 			}
 			else if (dir==-1&&Opens[0][b]<Closes[0][b]){
-				log("FALSE");
+				if(debug)
+					log("FALSE");
 				return false;
 			}
 			double top=Math.Max(Opens[0][b],Closes[0][b]);
 			double bottom=Math.Min(Opens[0][b],Closes[0][b]);
 			if(dir==1){
 				if(engulfik2(b,dir,Opens[0][b],Closes[0][b],Closes[0][b],r)){							//secondary recursion to see if I am the winner
-					log("TRUE");
+					if(debug)
+						log("TRUE");
 					return true;
 				}
 				else{
-					log("FALSE gulfik2 failed");
+					if(debug)
+						log("FALSE gulfik2 failed");
 					return false;
 				}
 				
 			}
 			else{
 				if(engulfik2(b,dir,Opens[0][b],Closes[0][b],Closes[0][b],r)){
-					log("TRUE");
+					if(debug)
+						log("TRUE");
 					return true;
 				}
 				else{
-					log("FALSE");
+					if(debug)
+						log("FALSE");
 					return false;
 				}
 			}			
 		}
 		protected bool engulfik2(int b, int dir, double low_water,double high_water,double level, int r){
-			log("      DEBUG: ENGULFIK2 b="+b+";dir="+dir+";low_water="+low_water+";high_water="+high_water+";level="+level+";r="+r+";Open="+Opens[0][b]+";Close="+Closes[0][b]);
+			if(debug)
+				log("      DEBUG: ENGULFIK2 b="+b+";dir="+dir+";low_water="+low_water+";high_water="+high_water+";level="+level+";r="+r+";Open="+Opens[0][b]+";Close="+Closes[0][b]);
 
 			
 			//1. Check for new minimum (for long engulfik)
 			//2. Check for new maximum  
 			//3. Check if next bar top is above me;
 			if(b>=maxLookBackEngulfik){	
-				log("      FALSE");
+				if(debug)
+					log("      FALSE");
 				return false;
 			}
 			//my top and bot
@@ -457,12 +470,13 @@ namespace NinjaTrader.Strategy
 			if(dir>0){
 				low_water=Math.Min(low_water,lBot);
 				high_water=Math.Max(high_water,lTop);
-				if(nTop>level&&level-low_water>3/tf){	//found first above the level
+				if(nTop>level&&level-low_water>1/tf){	//found first above the level
 					
 					if(engulfik3(b+1,dir,low_water,nTop,level)) {// 3d recursion to check if it will climb to twice level-lMin befor hitting new min
 						if(r==0)	//if checking on behalf of top level primary recursion
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
-						log("      TRUE - WINNER");
+						if(debug)
+							log("      TRUE - WINNER");
 						return true;
 					}
 				}
@@ -470,10 +484,12 @@ namespace NinjaTrader.Strategy
 					if(nTop<level-1/tf&&engulfik2(b+1,dir,low_water,high_water,level,r)){
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
-						log("      TRUE - WINNER");	
+						if(debug)
+							log("      TRUE - WINNER");	
 						return true;
 					}else {
-						log("      FALSE");
+						if(debug)
+							log("      FALSE");
 						return false;
 					}
 				}
@@ -481,11 +497,12 @@ namespace NinjaTrader.Strategy
 			else{
 				low_water=Math.Max(low_water,lTop);
 				high_water=Math.Min(high_water,lBot);
-				if(nBot<level&&low_water-level>3/tf){
+				if(nBot<level&&low_water-level>1/tf){
 					if(engulfik3(b+1,dir,low_water,nBot,level)){ // end scenario
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
-						log("      TRUE - WINNER");
+						if(debug)
+							log("      TRUE - WINNER");
 						return true;
 					}
 				}
@@ -493,11 +510,13 @@ namespace NinjaTrader.Strategy
 					if(nBot>level+1/tf&&engulfik2(b+1,dir,low_water,high_water,level,r)){
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
-						log("      TRUE - WINNER");		
+						if(debug)
+							log("      TRUE - WINNER");		
 						return true;	
 					}
 					else{
-						log("      FALSE");
+						if(debug)
+							log("      FALSE");
 						return false;
 					}
 					
@@ -511,7 +530,8 @@ namespace NinjaTrader.Strategy
 				return false;
 			double lBot=Math.Min(Opens[0][b],Closes[0][b]);
 			double lTop=Math.Max(Opens[0][b],Closes[0][b]);
-			log("            DEBUG: ENGULFIK3 b="+b+";dir="+dir+";min="+min+";max="+max+";level="+level+";Open="+Opens[0][b]+";Close="+Closes[0][b]+";lBot="+lBot+";lTop="+lTop);
+			if(debug)
+				log("            DEBUG: ENGULFIK3 b="+b+";dir="+dir+";min="+min+";max="+max+";level="+level+";Open="+Opens[0][b]+";Close="+Closes[0][b]+";lBot="+lBot+";lTop="+lTop);
 			if(dir>0){
 				/*if(level-min<1/tf){
 					log("FALSE - level<=min");
@@ -522,19 +542,22 @@ namespace NinjaTrader.Strategy
 					return false;	
 
 				}*/
-				if(lTop>level&&lTop>min&&lTop-min>(level-min)*3){
-					log("            TRUE");
+				if(lTop>level&&lTop>min&&lTop-min>(level-min)*2){
+					if(debug)
+						log("            TRUE");
 					return true;
 				}
 				if(lBot<min){
-					log("            FALSE");
+					if(debug)
+						log("            FALSE");
 					return false;
 				}
 				return engulfik3(b+1,dir,min,max,level);	
 			}			
 			else{
-				if(lBot<level&&lBot<min&&min-lBot>(min-level)*3){
-					log("            TRUE");
+				if(lBot<level&&lBot<min&&min-lBot>(min-level)*2){
+					if(debug)
+						log("            TRUE");
 					return true;
 				}
 				/*if(level<=lBot){
@@ -543,7 +566,8 @@ namespace NinjaTrader.Strategy
 
 				}*/
 				if(lTop>min){
-					log("            FALSE");
+					if(debug)
+						log("            FALSE");
 					return false;
 				}
 				return engulfik3(b+1,dir,min,max,level);	
