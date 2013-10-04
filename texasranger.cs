@@ -107,7 +107,7 @@ namespace NinjaTrader.Strategy
 		bool 		virgin		=	true;																			//detects first live tick to reset any existing ranges
 		Range		range		=	new Range();
 		Candle[]    candles		=	new Candle[3];
-		bool debug=false;
+		bool debug=true;
 		#endregion			
 		protected override void start(){}		
 		protected  override void barDetector(){	
@@ -299,18 +299,19 @@ namespace NinjaTrader.Strategy
 				
 			}
 			if(pos==0&&allowGulfik){
-				logState("DEBUG BEGIN GULFIK");	
+				if(debug)
+					logState("DEBUG BEGIN GULFIK");	
 				if(engulfik(0,1,0)){
 					trade.dir=1;
-					trade.target=3;
-					trade.stop=6;
+					trade.target=6;
+					trade.stop=12;
 					trade.signal="kickass gulfik downup";
 					processTradeEvent(TRADE_EVENT.KICKASS_LONG);
 				}
 				else if(engulfik(0,-1,0)){
 					trade.dir=-1;
-					trade.target=3;
-					trade.stop=6;
+					trade.target=6;
+					trade.stop=12;
 					trade.signal="kickass gulfik updown";
 					processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
 				}
@@ -462,15 +463,19 @@ namespace NinjaTrader.Strategy
 			//my top and bot
 			double lTop=Math.Max(Opens[0][b],Closes[0][b]);
 			double lBot=Math.Min(Opens[0][b],Closes[0][b]);
+			double lHigh=Highs[0][b];
+			double lLow=Lows[0][b];
 
 			//next bar
 			double nBot=Math.Min(Opens[0][b+1],Closes[0][b+1]);
 			double nTop=Math.Max(Opens[0][b+1],Closes[0][b+1]);
+			double nHigh=Highs[0][b+1];
+			double nLow=Lows[0][b+1];
 				
 			if(dir>0){
 				low_water=Math.Min(low_water,lBot);
 				high_water=Math.Max(high_water,lTop);
-				if(nTop>level&&level-low_water>1/tf){	//found first above the level
+				if(nLow>lLow&&nTop>level&&level-low_water>3/tf){	//found first above the level
 					
 					if(engulfik3(b+1,dir,low_water,nTop,level)) {// 3d recursion to check if it will climb to twice level-lMin befor hitting new min
 						if(r==0)	//if checking on behalf of top level primary recursion
@@ -497,7 +502,7 @@ namespace NinjaTrader.Strategy
 			else{
 				low_water=Math.Max(low_water,lTop);
 				high_water=Math.Min(high_water,lBot);
-				if(nBot<level&&low_water-level>1/tf){
+				if(nHigh<lHigh&&nBot<level&&low_water-level>3/tf){
 					if(engulfik3(b+1,dir,low_water,nBot,level)){ // end scenario
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
