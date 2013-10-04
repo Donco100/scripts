@@ -107,7 +107,7 @@ namespace NinjaTrader.Strategy
 		bool 		virgin		=	true;																			//detects first live tick to reset any existing ranges
 		Range		range		=	new Range();
 		Candle[]    candles		=	new Candle[3];
-		bool debug=true;
+		bool debug_gulfik=false;
 		#endregion			
 		protected override void start(){}		
 		protected  override void barDetector(){	
@@ -228,10 +228,10 @@ namespace NinjaTrader.Strategy
 									if(tgt>=2){
 									/************************************************************************/
 									//  RANGE START
-										//bounceTriggered=false;													//reset secondary (bounce) watch
+										//bounceTriggered=false;												//reset secondary (bounce) watch
 										//breakRange=false;														//reset hard break of the range indicator
 										//noEntry=false;
-										range.active=true;																//set watch indicator
+										range.active=true;														//set watch indicator
 										range.high=mxh;
 										range.low=mnh;
 										range.median=mnh+(mxh-mnh)/2;
@@ -282,7 +282,7 @@ namespace NinjaTrader.Strategy
 			
 			if(pos!=0&&bar-trade.enteredBar>timeLimitTrade){
 				logState("LONG TRADE DETECTED bar="+bar+";tradeBar="+trade.enteredBar);
-				if((pos>0&&tick.bid>trade.entry)||(pos<0&&tick.ask<trade.entry)){
+				if((pos!=0/*&&tick.bid>trade.entry)||(pos<0&&tick.ask<trade.entry*/)){
 					//log("POSITIVE OUT");
 					if(pos>0)
 						processTradeEvent(TRADE_EVENT.EXIT_LONG_LONG_TRADE);
@@ -299,19 +299,19 @@ namespace NinjaTrader.Strategy
 				
 			}
 			if(pos==0&&allowGulfik){
-				if(debug)
+				if(debug_gulfik)
 					logState("DEBUG BEGIN GULFIK");	
 				if(engulfik(0,1,0)){
 					trade.dir=1;
-					trade.target=6;
-					trade.stop=12;
+					trade.target=16;
+					trade.stop=19;
 					trade.signal="kickass gulfik downup";
 					processTradeEvent(TRADE_EVENT.KICKASS_LONG);
 				}
 				else if(engulfik(0,-1,0)){
 					trade.dir=-1;
-					trade.target=6;
-					trade.stop=12;
+					trade.target=16;
+					trade.stop=19;
 					trade.signal="kickass gulfik updown";
 					processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
 				}
@@ -388,7 +388,7 @@ namespace NinjaTrader.Strategy
 			return true;
 		}
 		protected bool engulfik(int b, int dir, int r){
-			if(debug)
+			if(debug_gulfik)
 			 log("DEBUG: ENGULFIK b="+b+";dir="+dir+";r="+r+";Open="+Opens[0][b]+";Close="+Closes[0][b]);
 			if(b>=maxLookBackEngulfik){																		
 				return false;
@@ -396,26 +396,26 @@ namespace NinjaTrader.Strategy
 			
 			if(engulfik(b+1,dir,r+1)){																			//check if the next bar is engulfik with a higher priority
 				if(r>0){
-					if(debug)																						//if I am not the top level, just pass the result up	
+					if(debug_gulfik)																						//if I am not the top level, just pass the result up	
 						log("TRUE");
 					return true;
 				}
 				else{
-					if(debug)
+					if(debug_gulfik)
 						log("FALSE");	
 					return false;																				//if I am the top level, it is not good to have inner engulf
 				}
 			}
-			if(debug)
+			if(debug_gulfik)
 				log("GULFIK1 - PAST PRIMARY ITER r="+r);
 			//now check if my bar is engulfik 	
 			if(dir==1&&Opens[0][b]>Closes[0][b]){	
-				if(debug)															//cannot be an engufik if counter-direction color
+				if(debug_gulfik)															//cannot be an engufik if counter-direction color
 					log("FALSE - counterdir, Opens[0][b]="+Opens[0][b]+";Closes[0][b]="+Closes[0][b]);
 				return false;
 			}
 			else if (dir==-1&&Opens[0][b]<Closes[0][b]){
-				if(debug)
+				if(debug_gulfik)
 					log("FALSE");
 				return false;
 			}
@@ -423,12 +423,12 @@ namespace NinjaTrader.Strategy
 			double bottom=Math.Min(Opens[0][b],Closes[0][b]);
 			if(dir==1){
 				if(engulfik2(b,dir,Opens[0][b],Closes[0][b],Closes[0][b],r)){							//secondary recursion to see if I am the winner
-					if(debug)
+					if(debug_gulfik)
 						log("TRUE");
 					return true;
 				}
 				else{
-					if(debug)
+					if(debug_gulfik)
 						log("FALSE gulfik2 failed");
 					return false;
 				}
@@ -436,19 +436,19 @@ namespace NinjaTrader.Strategy
 			}
 			else{
 				if(engulfik2(b,dir,Opens[0][b],Closes[0][b],Closes[0][b],r)){
-					if(debug)
+					if(debug_gulfik)
 						log("TRUE");
 					return true;
 				}
 				else{
-					if(debug)
+					if(debug_gulfik)
 						log("FALSE");
 					return false;
 				}
 			}			
 		}
 		protected bool engulfik2(int b, int dir, double low_water,double high_water,double level, int r){
-			if(debug)
+			if(debug_gulfik)
 				log("      DEBUG: ENGULFIK2 b="+b+";dir="+dir+";low_water="+low_water+";high_water="+high_water+";level="+level+";r="+r+";Open="+Opens[0][b]+";Close="+Closes[0][b]);
 
 			
@@ -456,7 +456,7 @@ namespace NinjaTrader.Strategy
 			//2. Check for new maximum  
 			//3. Check if next bar top is above me;
 			if(b>=maxLookBackEngulfik){	
-				if(debug)
+				if(debug_gulfik)
 					log("      FALSE");
 				return false;
 			}
@@ -475,12 +475,12 @@ namespace NinjaTrader.Strategy
 			if(dir>0){
 				low_water=Math.Min(low_water,lBot);
 				high_water=Math.Max(high_water,lTop);
-				if(nLow>lLow&&nTop>level&&level-low_water>3/tf){	//found first above the level
+				if(nLow>lLow&&nTop>level&&level-low_water>6/tf){	//found first above the level
 					
 					if(engulfik3(b+1,dir,low_water,nTop,level)) {// 3d recursion to check if it will climb to twice level-lMin befor hitting new min
 						if(r==0)	//if checking on behalf of top level primary recursion
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
-						if(debug)
+						if(debug_gulfik)
 							log("      TRUE - WINNER");
 						return true;
 					}
@@ -489,11 +489,11 @@ namespace NinjaTrader.Strategy
 					if(nTop<level-1/tf&&engulfik2(b+1,dir,low_water,high_water,level,r)){
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
-						if(debug)
+						if(debug_gulfik)
 							log("      TRUE - WINNER");	
 						return true;
 					}else {
-						if(debug)
+						if(debug_gulfik)
 							log("      FALSE");
 						return false;
 					}
@@ -502,11 +502,11 @@ namespace NinjaTrader.Strategy
 			else{
 				low_water=Math.Max(low_water,lTop);
 				high_water=Math.Min(high_water,lBot);
-				if(nHigh<lHigh&&nBot<level&&low_water-level>3/tf){
+				if(nHigh<lHigh&&nBot<level&&low_water-level>6/tf){
 					if(engulfik3(b+1,dir,low_water,nBot,level)){ // end scenario
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
-						if(debug)
+						if(debug_gulfik)
 							log("      TRUE - WINNER");
 						return true;
 					}
@@ -515,12 +515,12 @@ namespace NinjaTrader.Strategy
 					if(nBot>level+1/tf&&engulfik2(b+1,dir,low_water,high_water,level,r)){
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
-						if(debug)
+						if(debug_gulfik)
 							log("      TRUE - WINNER");		
 						return true;	
 					}
 					else{
-						if(debug)
+						if(debug_gulfik)
 							log("      FALSE");
 						return false;
 					}
@@ -535,7 +535,7 @@ namespace NinjaTrader.Strategy
 				return false;
 			double lBot=Math.Min(Opens[0][b],Closes[0][b]);
 			double lTop=Math.Max(Opens[0][b],Closes[0][b]);
-			if(debug)
+			if(debug_gulfik)
 				log("            DEBUG: ENGULFIK3 b="+b+";dir="+dir+";min="+min+";max="+max+";level="+level+";Open="+Opens[0][b]+";Close="+Closes[0][b]+";lBot="+lBot+";lTop="+lTop);
 			if(dir>0){
 				/*if(level-min<1/tf){
@@ -547,21 +547,21 @@ namespace NinjaTrader.Strategy
 					return false;	
 
 				}*/
-				if(lTop>level&&lTop>min&&lTop-min>(level-min)*2){
-					if(debug)
+				if(lTop>level&&lTop>min&&lTop-min>(level-min)*3){
+					if(debug_gulfik)
 						log("            TRUE");
 					return true;
 				}
 				if(lBot<min){
-					if(debug)
+					if(debug_gulfik)
 						log("            FALSE");
 					return false;
 				}
 				return engulfik3(b+1,dir,min,max,level);	
 			}			
 			else{
-				if(lBot<level&&lBot<min&&min-lBot>(min-level)*2){
-					if(debug)
+				if(lBot<level&&lBot<min&&min-lBot>(min-level)*3){
+					if(debug_gulfik)
 						log("            TRUE");
 					return true;
 				}
@@ -571,7 +571,7 @@ namespace NinjaTrader.Strategy
 
 				}*/
 				if(lTop>min){
-					if(debug)
+					if(debug_gulfik)
 						log("            FALSE");
 					return false;
 				}
@@ -592,7 +592,7 @@ namespace NinjaTrader.Strategy
 			conds.Add("FirstHeight",candles[1].height>=FIRST_STICK_HEIGHT);
 			conds.Add("SecondHeight",candles[0].height>=SECOND_STICK_HEIGHT);
 			conds.Add("StickingDown",candles[1].topBodyQuarter<=Math.Min(MIN(Opens[0],PRE_PERIOD)[2],MIN(Closes[0],PRE_PERIOD)[2]));
-		//	conds.Add("SecondCloseGTEQFirstBodyTop",candles[0].top>=candles[1].topBodyQuarter);
+			//	conds.Add("SecondCloseGTEQFirstBodyTop",candles[0].top>=candles[1].topBodyQuarter);
 			conds.Add("TopsMatch",candles[0].top >= candles[1].top);
 			conds.Add("SharpDown",candles[2].top>=candles[1].top+(candles[2].body)/tf&&candles[1].low<candles[2].low-(candles[1].body/2)/tf);
 			conds.Add("Preaverage",candles[1].preaverage>=candles[1].top+(candles[1].body)/tf&&candles[1].premax>candles[1].high+(candles[1].height*2)/tf);
@@ -640,7 +640,7 @@ namespace NinjaTrader.Strategy
 			conds.Add("FirstHeight",candles[1].height>=FIRST_STICK_HEIGHT);
 			conds.Add("SecondHeight",candles[0].height>=SECOND_STICK_HEIGHT);
 			conds.Add("StickingUp",candles[1].bottomBodyQuarter>=Math.Max(MAX(Opens[0],PRE_PERIOD)[2],MAX(Closes[0],PRE_PERIOD)[2]));
-		//	conds.Add("SecondCloseLTEQFirstBodyBottom",candles[0].bottom<=candles[1].bottomBodyQuarter);
+			//	conds.Add("SecondCloseLTEQFirstBodyBottom",candles[0].bottom<=candles[1].bottomBodyQuarter);
 			conds.Add("bottomsMatch",candles[0].bottom<=candles[1].bottom);
 			
 			conds.Add("SharpUp",candles[2].bottom<=candles[1].bottom-(candles[2].body)/tf&&candles[1].high>candles[2].high+(candles[1].body/2)/tf);
@@ -678,7 +678,7 @@ namespace NinjaTrader.Strategy
 		}
 		
 		protected  void processRangeEvent(RANGE_EVENT e){
-		logState("RANGE EVENT "+e);
+			logState("RANGE EVENT "+e);
 			/*switch(e){
 				case RANGE_EVENT.DETECT:
 				case RANGE_EVENT.BREAKOUT:
@@ -686,7 +686,7 @@ namespace NinjaTrader.Strategy
 		}
 		protected  void processTradeEvent(TRADE_EVENT e){
 		
-		switch(e){
+			switch(e){
 				case TRADE_EVENT.KICKASS_LONG:
 					trade.dir=1;
 					trade.type="KICKASS";
@@ -890,101 +890,101 @@ namespace NinjaTrader.Strategy
 		protected override string dumpState(){
 			return  ":: RANGE:amplitude="+range.amplitude+";period="+range.period+";high="+range.high+";median="+range.median+";low="+range.low+";active="+range.active;
 		}
-        #region Properties
+       	#region Properties
        
-		[Description("")]
-        [GridCategory("Parameters")]
-        public int MaxRangePeriod
-        {
-            get { return maxPeriod; }
-            set { maxPeriod = value; }
-        } 
-		[Description("Maximum Range")]
-        [GridCategory("Parameters")]
-        public double MaxRange
-        {
-            get { return maxRange; }
-            set { maxRange = value; }
-        } 
-		[Description("")]
-        [GridCategory("Parameters")]
-        public int MinRangePeriod
-        {
-            get { return minPeriod; }
-            set { minPeriod = value; }
-        } 
-		[Description("")]
-        [GridCategory("Parameters")]
-        public double MinRange
-        {
-            get { return minRange; }
-            set { minRange= value; }
-        } 
-		
-		[Description("Exit the positive trades after this number of bars")]
-        [GridCategory("Parameters")]
-        public int TimeLimitTrade
-        {
-            get { return timeLimitTrade; }
-            set {  timeLimitTrade= value; }
-        } 
-		[Description("Enables oscillating before the breakout")]
-        [GridCategory("Parameters")]
-        public bool AllowSwingIn
-        {
-            get { return allowPreBounce; }
-            set {  allowPreBounce= value; }
-        } 
-		[Description("Enables oscillating before the breakout")]
-        [GridCategory("Parameters")]
-        public bool AllowSwingOut
-        {
-            get { return allowSwingOut; }
-            set {  allowSwingOut= value; }
-        }
-		[Description("Enables terminating long trades")]
-        [GridCategory("Parameters")]
-        public bool AllowLongTradesKill
-        {
-            get { return allowLongTradesKill; }
-            set {  allowLongTradesKill= value; }
-        }
-		[Description("Enables allowKickass indicator")]
-        [GridCategory("Parameters")]
-        public bool AllowKickass
-        {
-            get { return allowKickass; }
-            set {  allowKickass= value; }
-        }
-		[Description("Enables allowKickass indicator")]
-        [GridCategory("Parameters")]
-        public bool AllowBounce
-        {
-            get { return allowBounce; }
-            set {  allowBounce= value; }
-        }
-		
-		[Description("Enables Gulfik indicator")]
-        [GridCategory("Parameters")]
-        public bool AllowGulfik
-        {
-            get { return allowGulfik; }
-            set {  allowGulfik= value; }
-        }
-		[Description("How far to go looking for gulfik")]
-        [GridCategory("Parameters")]
-        public int MaxLookBackEngulfik
-        {
-            get { return maxLookBackEngulfik; }
-            set {  maxLookBackEngulfik= value; }
-        }
-        [Description("How far to go looking for the peak before gulfik")]
-        [GridCategory("Parameters")]
-        public int MaxExtendLookBackEngulfik
-        {
-            get { return maxExtendLookBackEngulfik; }
-            set {  maxExtendLookBackEngulfik= value; }
-        }
+			[Description("")]
+	        [GridCategory("Parameters")]
+	        public int MaxRangePeriod
+	        {
+	            get { return maxPeriod; }
+	            set { maxPeriod = value; }
+	        } 
+			[Description("Maximum Range")]
+	        [GridCategory("Parameters")]
+	        public double MaxRange
+	        {
+	            get { return maxRange; }
+	            set { maxRange = value; }
+	        } 
+			[Description("")]
+	        [GridCategory("Parameters")]
+	        public int MinRangePeriod
+	        {
+	            get { return minPeriod; }
+	            set { minPeriod = value; }
+	        } 
+			[Description("")]
+	        [GridCategory("Parameters")]
+	        public double MinRange
+	        {
+	            get { return minRange; }
+	            set { minRange= value; }
+	        } 
+			
+			[Description("Exit the positive trades after this number of bars")]
+	        [GridCategory("Parameters")]
+	        public int TimeLimitTrade
+	        {
+	            get { return timeLimitTrade; }
+	            set {  timeLimitTrade= value; }
+	        } 
+			[Description("Enables oscillating before the breakout")]
+	        [GridCategory("Parameters")]
+	        public bool AllowSwingIn
+	        {
+	            get { return allowPreBounce; }
+	            set {  allowPreBounce= value; }
+	        } 
+			[Description("Enables oscillating before the breakout")]
+	        [GridCategory("Parameters")]
+	        public bool AllowSwingOut
+	        {
+	            get { return allowSwingOut; }
+	            set {  allowSwingOut= value; }
+	        }
+			[Description("Enables terminating long trades")]
+	        [GridCategory("Parameters")]
+	        public bool AllowLongTradesKill
+	        {
+	            get { return allowLongTradesKill; }
+	            set {  allowLongTradesKill= value; }
+	        }
+			[Description("Enables allowKickass indicator")]
+	        [GridCategory("Parameters")]
+	        public bool AllowKickass
+	        {
+	            get { return allowKickass; }
+	            set {  allowKickass= value; }
+	        }
+			[Description("Enables allowKickass indicator")]
+	        [GridCategory("Parameters")]
+	        public bool AllowBounce
+	        {
+	            get { return allowBounce; }
+	            set {  allowBounce= value; }
+	        }
+			
+			[Description("Enables Gulfik indicator")]
+	        [GridCategory("Parameters")]
+	        public bool AllowGulfik
+	        {
+	            get { return allowGulfik; }
+	            set {  allowGulfik= value; }
+	        }
+			[Description("How far to go looking for gulfik")]
+	        [GridCategory("Parameters")]
+	        public int MaxLookBackEngulfik
+	        {
+	            get { return maxLookBackEngulfik; }
+	            set {  maxLookBackEngulfik= value; }
+	        }
+	        [Description("How far to go looking for the peak before gulfik")]
+	        [GridCategory("Parameters")]
+	        public int MaxExtendLookBackEngulfik
+	        {
+	            get { return maxExtendLookBackEngulfik; }
+	            set {  maxExtendLookBackEngulfik= value; }
+	        }
 
 
         #endregion
