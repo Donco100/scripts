@@ -122,7 +122,7 @@ namespace NinjaTrader.Strategy
 			TraceOrders = false; 
 			CalculateOnBarClose = true;
 			IncludeCommission=true;
-			BarsRequired=20;
+			BarsRequired=48;
 			string firstInstrumentSpec=instrumentName+" "+contractMonth;
 			
 			Add(firstInstrumentSpec,PeriodType.Tick,1);																//1
@@ -269,7 +269,7 @@ namespace NinjaTrader.Strategy
 			trade.pending=true;
 			ex.pendingShortExit=true;
 			ex.pendingBar=bar;
-			ex.exitOrder=ExitShortLimit(OrderBarIndex,true,NumContracts,limit,ex.orderID,ex.orderID);
+			ex.exitOrder=ExitShortLimit(OrderBarIndex,true,NumContracts,limit,trade.signal,ex.orderID);
 		}
 		protected void exitShortMarket(){
 			/*if(Historical&&tradingLive)
@@ -277,7 +277,7 @@ namespace NinjaTrader.Strategy
 			trade.pending=true;
 			ex.pendingShortExit=true;
 			ex.pendingBar=bar;
-			ex.exitOrder=ExitShort(OrderBarIndex,NumContracts,ex.orderID,ex.orderID);
+			ex.exitOrder=ExitShort(OrderBarIndex,NumContracts,trade.signal,ex.orderID);
 		}
 		protected void exitLong(double limit){
 			/*if(Historical&&tradingLive)
@@ -285,7 +285,7 @@ namespace NinjaTrader.Strategy
 			trade.pending=true;
 			ex.pendingLongExit=true;
 			ex.pendingBar=bar;
-			ex.exitOrder=ExitLongLimit(OrderBarIndex,true,NumContracts,limit,ex.orderID,ex.orderID);
+			ex.exitOrder=ExitLongLimit(OrderBarIndex,true,NumContracts,limit,trade.signal,ex.orderID);
 		}
 		protected void exitLongMarket(){
 			/*if(Historical&&tradingLive)
@@ -293,7 +293,7 @@ namespace NinjaTrader.Strategy
 			trade.pending=true;
 			ex.pendingLongExit=true;
 			ex.pendingBar=bar;
-			ex.exitOrder=ExitLong(OrderBarIndex,NumContracts,ex.orderID,ex.orderID);
+			ex.exitOrder=ExitLong(OrderBarIndex,NumContracts,trade.signal,ex.orderID);
 		}
 		protected int getPos(){
 			Position pES=Positions[OrderBarIndex];

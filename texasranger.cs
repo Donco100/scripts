@@ -1,17 +1,17 @@
 #region Using declarations
-using System;
-using System.Runtime.CompilerServices;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Xml.Serialization;
-using NinjaTrader.Cbi;
-using NinjaTrader.Data;
-using NinjaTrader.Indicator;
-using NinjaTrader.Gui.Chart;
-using NinjaTrader.Strategy;
+	using System;
+	using System.Runtime.CompilerServices;
+	using System.Collections.Generic;
+	using System.ComponentModel;
+	using System.Diagnostics;
+	using System.Drawing;
+	using System.Drawing.Drawing2D;
+	using System.Xml.Serialization;
+	using NinjaTrader.Cbi;
+	using NinjaTrader.Data;
+	using NinjaTrader.Indicator;
+	using NinjaTrader.Gui.Chart;
+	using NinjaTrader.Strategy;
 #endregion
 
 
@@ -98,11 +98,14 @@ namespace NinjaTrader.Strategy
 		private bool    allowSwingOut=true;		
 		private bool 	allowPreBounce=false;
 		private bool	allowLongTradesKill=true;
-		private bool    allowKickass=false;
+		private bool    allowKickass=true;
 		private bool 	allowBounce=true;
-		private bool    allowGulfik=true;
+		private bool    allowGulfik=false;
 		private int     maxLookBackEngulfik=6;
 		private int 	maxExtendLookBackEngulfik=36;
+		private int     minStop=16;
+		private int     kickassStop=18;
+		private int     kickassTarget=3;
 
 		bool 		virgin		=	true;																			//detects first live tick to reset any existing ranges
 		Range		range		=	new Range();
@@ -208,7 +211,7 @@ namespace NinjaTrader.Strategy
 							//averages:
 							abup=sbup/count;
 							abdn=sbdn/count;
-							if((abdn<rm&&abup>rm)){								// range detected
+							if((abdn<rm&&abup>rm)){																// range detected
 								double er=(wr*4);
 								
 								if(nr*4<minRange||er>maxRange||nr>wr)
@@ -282,7 +285,7 @@ namespace NinjaTrader.Strategy
 			
 			if(pos!=0&&bar-trade.enteredBar>timeLimitTrade){
 				logState("LONG TRADE DETECTED bar="+bar+";tradeBar="+trade.enteredBar);
-				if((pos!=0/*&&tick.bid>trade.entry)||(pos<0&&tick.ask<trade.entry*/)){
+				if((pos!=0&&tick.bid>trade.entry)||(pos<0&&tick.ask<trade.entry)){
 					//log("POSITIVE OUT");
 					if(pos>0)
 						processTradeEvent(TRADE_EVENT.EXIT_LONG_LONG_TRADE);
@@ -298,22 +301,21 @@ namespace NinjaTrader.Strategy
 					processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
 				
 			}
-			if(pos==0&&allowGulfik){
+			if(pos!=0&&allowGulfik){
 				if(debug_gulfik)
 					logState("DEBUG BEGIN GULFIK");	
-				if(engulfik(0,1,0)){
-					trade.dir=1;
-					trade.target=16;
-					trade.stop=19;
+				if(pos<0&&engulfik(0,1,0)){
+					//trade.dir=1;
+					//trade.target=12;
+					//trade.stop=19;
 					trade.signal="kickass gulfik downup";
-					processTradeEvent(TRADE_EVENT.KICKASS_LONG);
+					processTradeEvent(TRADE_EVENT.EXIT_SHORT);
 				}
-				else if(engulfik(0,-1,0)){
-					trade.dir=-1;
-					trade.target=16;
-					trade.stop=19;
+				else if(pos>0&&engulfik(0,-1,0)){
+					//trade.target=12;
+					//trade.stop=19;
 					trade.signal="kickass gulfik updown";
-					processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
+					processTradeEvent(TRADE_EVENT.EXIT_LONG);
 				}
 
 			}
@@ -475,7 +477,7 @@ namespace NinjaTrader.Strategy
 			if(dir>0){
 				low_water=Math.Min(low_water,lBot);
 				high_water=Math.Max(high_water,lTop);
-				if(nLow>lLow&&nTop>level&&level-low_water>6/tf){	//found first above the level
+				if(nLow>lLow&&nTop>level&&level-low_water>3/tf){	//found first above the level
 					
 					if(engulfik3(b+1,dir,low_water,nTop,level)) {// 3d recursion to check if it will climb to twice level-lMin befor hitting new min
 						if(r==0)	//if checking on behalf of top level primary recursion
@@ -486,7 +488,7 @@ namespace NinjaTrader.Strategy
 					}
 				}
 				else{
-					if(nTop<level-1/tf&&engulfik2(b+1,dir,low_water,high_water,level,r)){
+					if(nTop<level/tf&&engulfik2(b+1,dir,low_water,high_water,level,r)){
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
 						if(debug_gulfik)
@@ -502,7 +504,7 @@ namespace NinjaTrader.Strategy
 			else{
 				low_water=Math.Max(low_water,lTop);
 				high_water=Math.Min(high_water,lBot);
-				if(nHigh<lHigh&&nBot<level&&low_water-level>6/tf){
+				if(nHigh<lHigh&&nBot<level&&low_water-level>3/tf){
 					if(engulfik3(b+1,dir,low_water,nBot,level)){ // end scenario
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
@@ -512,7 +514,7 @@ namespace NinjaTrader.Strategy
 					}
 				}
 				else {
-					if(nBot>level+1/tf&&engulfik2(b+1,dir,low_water,high_water,level,r)){
+					if(nBot>level/tf&&engulfik2(b+1,dir,low_water,high_water,level,r)){
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
 						if(debug_gulfik)
@@ -538,16 +540,8 @@ namespace NinjaTrader.Strategy
 			if(debug_gulfik)
 				log("            DEBUG: ENGULFIK3 b="+b+";dir="+dir+";min="+min+";max="+max+";level="+level+";Open="+Opens[0][b]+";Close="+Closes[0][b]+";lBot="+lBot+";lTop="+lTop);
 			if(dir>0){
-				/*if(level-min<1/tf){
-					log("FALSE - level<=min");
-					return false;	
-				}*/
-				/*if(level>=lTop){
-					log("FALSE - below level");
-					return false;	
-
-				}*/
-				if(lTop>level&&lTop>min&&lTop-min>(level-min)*3){
+				
+				if(lTop>level&&lTop>min&&lTop-min>(level-min)*1){
 					if(debug_gulfik)
 						log("            TRUE");
 					return true;
@@ -560,16 +554,12 @@ namespace NinjaTrader.Strategy
 				return engulfik3(b+1,dir,min,max,level);	
 			}			
 			else{
-				if(lBot<level&&lBot<min&&min-lBot>(min-level)*3){
+				if(lBot<level&&lBot<min&&min-lBot>(min-level)*1){
 					if(debug_gulfik)
 						log("            TRUE");
 					return true;
 				}
-				/*if(level<=lBot){
-					log("FALSE - above level");
-					return false;	
-
-				}*/
+				
 				if(lTop>min){
 					if(debug_gulfik)
 						log("            FALSE");
@@ -618,8 +608,8 @@ namespace NinjaTrader.Strategy
 					trade.target=4;
 					trade.stop=12;
 				}*/
-				trade.target=3;
-				trade.stop=18;
+				trade.target=kickassTarget;
+				trade.stop=kickassStop;
 				trade.signal="kickass shpaly downup";
 				return true;
 				
@@ -668,8 +658,8 @@ namespace NinjaTrader.Strategy
 					trade.target=4;
 					trade.stop=12;
 				}*/
-				trade.target=3;
-				trade.stop=19;
+				trade.target=kickassTarget;
+				trade.stop=kickassStop;
 
 				trade.signal="kickass shpaly updown";
 				return true;
@@ -796,12 +786,12 @@ namespace NinjaTrader.Strategy
 			}
 			if(range.active){
 				if(pos==0/*&&(iTime<83000||iTime>100500)*/){
-					if(allowSwingOut&&tick.bid>range.high+tm/tf){
+					if(allowSwingOut&&tick.bid==range.high+tm/tf+1/tf){
 						if(!range.breakout)
 							processTradeEvent(TRADE_EVENT.SWING_OUT_LONG);
 						range.breakout=true;
 					}
-					else if(allowSwingOut&&tick.ask<range.low-tm/tf){
+					else if(allowSwingOut&&tick.ask==range.low-tm/tf-1/tf){
 						if(!range.breakout)
 							processTradeEvent(TRADE_EVENT.SWING_OUT_SHORT);
 						range.breakout=true;
@@ -867,7 +857,7 @@ namespace NinjaTrader.Strategy
 		protected override int getExitStop(){
 			if(trade.dir>0){
 				if(trade.type=="SWING_OUT"){
-					return (int) Math.Max((int)(tick.ask-range.high)*tf+tm,12*tm);
+					return (int) Math.Max((int)(tick.ask-range.low)*tf+tm,minStop*tm);
 				}
 				else{
 					return (int) trade.stop;
@@ -875,7 +865,7 @@ namespace NinjaTrader.Strategy
 			}
 			else if (trade.dir<0){
 				if(trade.type=="SWING_OUT"){
-					return(int) Math.Max((int)(range.low-tick.bid)*tf+tm,12*tm);
+					return(int) Math.Max((int)(range.high-tick.bid)*tf+tm,minStop*tm);
 					
 				}
 				else{
@@ -985,8 +975,27 @@ namespace NinjaTrader.Strategy
 	            get { return maxExtendLookBackEngulfik; }
 	            set {  maxExtendLookBackEngulfik= value; }
 	        }
-
-
+			[Description("Minimim Stop")]
+	        [GridCategory("Parameters")]
+	        public int MinStop
+	        {
+	            get { return minStop; }
+	            set {  minStop= value; }
+	        }
+			[Description("kickassStop")]
+	        [GridCategory("Parameters")]
+	        public int KickassStop
+	        {
+	            get { return kickassStop; }
+	            set {  kickassStop= value; }
+	        }
+	        [Description("KickassTarget")]
+	        [GridCategory("Parameters")]
+	        public int KickassTarget
+	        {
+	            get { return kickassTarget; }
+	            set {  kickassTarget= value; }
+	        }
         #endregion
     }
 	
