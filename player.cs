@@ -82,7 +82,7 @@ namespace NinjaTrader.Strategy
 			public double premax;
 		}
 		public enum RANGE_EVENT {DETECT,BREAKOUT,BREAKOUT_CLOSE,END};	//END is for unknown reason stop on loss happened
-		public enum TRADE_EVENT {EXIT_ON_EOD, SWING_IN_SHORT,SWING_IN_LONG, SWING_OUT_LONG,SWING_OUT_SHORT,EXIT_LONG_LONG_TRADE,EXIT_LONG_SHORT_TRADE,EXIT_LONG,EXIT_SHORT,STOP_LONG,STOP_SHORT,KICKASS_LONG,KICKASS_SHORT};
+		public enum TRADE_EVENT {EXIT_ON_EOD, SWING_IN_SHORT,SWING_IN_LONG, SWING_OUT_LONG,SWING_OUT_SHORT,EXIT_LONG_LONG_TRADE,EXIT_LONG_SHORT_TRADE,EXIT_LONG,EXIT_SHORT,STOP_LONG,STOP_SHORT,KICKASS_LONG,KICKASS_SHORT,BOUNCE_LONG,BOUNCE_SHORT};
 		public enum TRADE_TYPE {SWING_IN, SWING_OUT,KICKASS};
 		#endregion
 		
@@ -302,7 +302,7 @@ namespace NinjaTrader.Strategy
 					processTradeEvent(TRADE_EVENT.EXIT_LONG_SHORT_TRADE);
 			}
 			
-			else if(pos==0&&allowKickass&&!trade.pending){
+			if(pos==0&&allowKickass){
 				loadCandlesticks();
 				if(shpalyDownUp())
 					processTradeEvent(TRADE_EVENT.KICKASS_LONG);
@@ -310,7 +310,7 @@ namespace NinjaTrader.Strategy
 					processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
 				
 			}
-			else if(allowGulfik&&!trade.pending){
+			if(allowGulfik){
 				if(debug_gulfik)
 					logState("DEBUG BEGIN GULFIK");	
 				if(pos<0&&engulfik(0,1,0)){
@@ -698,14 +698,18 @@ namespace NinjaTrader.Strategy
 			}*/
 		}
 		protected  void processTradeEvent(TRADE_EVENT e){
-		
+			log("processTradeEvent trade.pending="+trade.pending);
+			if(trade.pending)
+				return;
 			switch(e){
+				case TRADE_EVENT.BOUNCE_LONG:
 				case TRADE_EVENT.KICKASS_LONG:
 					trade.dir=1;
 					trade.type="KICKASS";
 					enterLongMarket();
 					logState("TRADE EVENT "+e);	
 					break;
+				case TRADE_EVENT.BOUNCE_SHORT:
 				case TRADE_EVENT.KICKASS_SHORT:
 					trade.dir=-1;
 					trade.type="KICKASS";
@@ -855,7 +859,7 @@ namespace NinjaTrader.Strategy
 			}*/
 		}
 		protected override void reportLoss(){
-			if(!allowBounce||trade.pending)
+			if(!allowBounce)
 				return;
 			if(getPos()==0&&(ToTime(Time[0])>=iLastEntryTime&&ToTime(Time[0])<iRestartTime)){
 				return;
@@ -864,13 +868,13 @@ namespace NinjaTrader.Strategy
 				trade.target=trade.stop;
 				//trade.stop=12;
 				trade.signal="bounce down";
-				processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
+				processTradeEvent(TRADE_EVENT.BOUNCE_SHORT);
 			}
 			else if(trade.dir<0&&(true||trade.signal=="ShortSwingOut")){
 				trade.target=trade.stop;
 				//trade.stop=12;
 				trade.signal="bounce up";
-				processTradeEvent(TRADE_EVENT.KICKASS_LONG);			
+				processTradeEvent(TRADE_EVENT.BOUNCE_LONG);			
 			}
 		}
 		protected override void reportWin(){

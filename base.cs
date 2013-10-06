@@ -259,7 +259,8 @@ namespace NinjaTrader.Strategy
 		protected void enterShortMarket(){
 			/*if(Historical&&tradingLive)
 				return;*/
-			trade.pending=true;			ex.pendingShortEntry=true;
+			trade.pending=true;			
+			ex.pendingShortEntry=true;
 			ex.pendingBar=bar;
 			ex.orderID=trade.signal;
 			log("SETTING SHORT EXIT: TARGET="+getExitTarget()+";STOP="+getExitStop()+";SIGNAL="+trade.signal);			
