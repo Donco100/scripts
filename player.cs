@@ -866,13 +866,13 @@ namespace NinjaTrader.Strategy
 			}
 			if(trade.dir>0&&(true||trade.signal=="LongSwingOut")){
 				trade.target=trade.stop;
-				//trade.stop=12;
+				trade.stop=minStop;
 				trade.signal="bounce down";
 				processTradeEvent(TRADE_EVENT.BOUNCE_SHORT);
 			}
 			else if(trade.dir<0&&(true||trade.signal=="ShortSwingOut")){
 				trade.target=trade.stop;
-				//trade.stop=12;
+				trade.stop=minStop;
 				trade.signal="bounce up";
 				processTradeEvent(TRADE_EVENT.BOUNCE_LONG);			
 			}
