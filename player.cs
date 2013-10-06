@@ -45,7 +45,7 @@ namespace NinjaTrader.Strategy
 	
     /// </summary>
     [Description("Texas Ranger")]
-    public class TexasRanger : Base
+    public class Player : Base
     {
 		#region Types
 		

@@ -172,6 +172,15 @@ namespace NinjaTrader.Strategy
 				}
 			}
 		}
+		protected void checkNumContracts(){
+				if(!Historical)
+					NumContracts=(int)(GetAccountValue(AccountItem.CashValue)/maxmargin);
+				else {
+					 NumContracts=(int)(gainTotal/maxmargin);
+				}	
+				if(NumContracts==0||gainTotal<maxmargin)
+					Disable();
+		}
 		protected bool checkMarginCall(){
 			Position pES=Positions[OrderBarIndex];
 			int q=pES.Quantity;
@@ -226,14 +235,7 @@ namespace NinjaTrader.Strategy
 		// only called on bar[0]
 		protected void tick0(int bar){
 			this.bar=bar;
-			if(!Historical)
-				NumContracts=(int)(GetAccountValue(AccountItem.CashValue)/maxmargin);
-			else {
-				NumContracts=(int)(gainTotal/maxmargin);
-
-			}	
-			if(NumContracts==0)
-				Disable();
+			
 			if(bar>ex.pendingBar+1){																		//taking care of stuck orders
 				if(ex.pendingLongEntry||ex.pendingShortEntry){
 					if(ex.entryOrder!=null){
@@ -368,6 +370,7 @@ namespace NinjaTrader.Strategy
 			}
 		}
 		protected override void OnPositionUpdate(IPosition position){
+			checkNumContracts();
 			if(trade.pending){
 				if (Positions[OrderBarIndex].MarketPosition == MarketPosition.Flat){
 					if(ex.pendingLongExit||ex.pendingShortExit){
@@ -406,6 +409,7 @@ namespace NinjaTrader.Strategy
 			}
 		}
 		protected override void OnExecution(IExecution execution){
+			checkNumContracts();
 			if (execution.Order != null && execution.Order.OrderState == OrderState.Filled){
 				//log("Execution:"+execution.ToString());
 				if (ex.entryOrder != null && ex.entryOrder == execution.Order){
