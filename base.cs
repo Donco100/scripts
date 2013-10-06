@@ -96,7 +96,7 @@ namespace NinjaTrader.Strategy
 		protected int 			bar				=	0;	
 		protected Tick			tick			=	new Tick();
 		protected int 			currentBar		=	0;
-		protected double 		gainTotal		=	0.0;															//gain accumulator
+		protected double 		gainTotal		=	1500.0;															//gain accumulator
 		protected int 			iStartTime		=	20000;
 		protected int 			iLastEntryTime	=	153000;
 		protected int 			iExitOnCloseTime=	155800;
@@ -195,7 +195,12 @@ namespace NinjaTrader.Strategy
 		// only called on bar[0]
 		protected void tick0(int bar){
 			this.bar=bar;
-			
+			if(!Historical)
+				NumContracts=(int)(GetAccountValue(AccountItem.CashValue)/1000);
+			else {
+				NumContracts=(int)(gainTotal/1000);
+
+			}	
 			if(bar>ex.pendingBar+1){																		//taking care of stuck orders
 				if(ex.pendingLongEntry||ex.pendingShortEntry){
 					if(ex.entryOrder!=null){
@@ -499,6 +504,13 @@ namespace NinjaTrader.Strategy
         {
             get { return instrumentName; }
             set { instrumentName = value; }
+        }
+        [Description("gainTotal - enter the account size on the start of the strategy")]
+        [GridCategory("Parameters")]
+        public double SimAccountSize
+        {
+            get { return gainTotal; }
+            set { gainTotal = value; }
         }
 		protected int OrderBarIndex
         {

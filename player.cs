@@ -302,7 +302,7 @@ namespace NinjaTrader.Strategy
 					processTradeEvent(TRADE_EVENT.EXIT_LONG_SHORT_TRADE);
 			}
 			
-			if(pos==0&&allowKickass){
+			else if(pos==0&&allowKickass&&!trade.pending){
 				loadCandlesticks();
 				if(shpalyDownUp())
 					processTradeEvent(TRADE_EVENT.KICKASS_LONG);
@@ -310,7 +310,7 @@ namespace NinjaTrader.Strategy
 					processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
 				
 			}
-			if(allowGulfik){
+			else if(allowGulfik&&!trade.pending){
 				if(debug_gulfik)
 					logState("DEBUG BEGIN GULFIK");	
 				if(pos<0&&engulfik(0,1,0)){
@@ -809,12 +809,12 @@ namespace NinjaTrader.Strategy
 			}
 			if(range.active){
 				if(pos==0/*&&(iTime<83000||iTime>100500)*/){
-					if(allowSwingOut&&tick.bid==range.high+tm/tf+1/tf){
+					if(allowSwingOut&&tick.bid==range.high+tm/tf+0/tf/*&&range.high>=MAX(Highs[0],24)[1]*/){
 						if(!range.breakout)
 							processTradeEvent(TRADE_EVENT.SWING_OUT_LONG);
 						range.breakout=true;
 					}
-					else if(allowSwingOut&&tick.ask==range.low-tm/tf-1/tf){
+					else if(allowSwingOut&&tick.ask==range.low-tm/tf-0/tf/*&&range.low<=MIN(Lows[0],24)[1]*/){
 						if(!range.breakout)
 							processTradeEvent(TRADE_EVENT.SWING_OUT_SHORT);
 						range.breakout=true;
@@ -855,19 +855,18 @@ namespace NinjaTrader.Strategy
 			}*/
 		}
 		protected override void reportLoss(){
-			if(!allowBounce)
+			if(!allowBounce||trade.pending)
 				return;
 			if(getPos()==0&&(ToTime(Time[0])>=iLastEntryTime&&ToTime(Time[0])<iRestartTime)){
 				return;
 			}
-	
-			if(trade.signal=="LongSwingOut"){
+			if(trade.dir>0&&(true||trade.signal=="LongSwingOut")){
 				trade.target=trade.stop;
 				//trade.stop=12;
 				trade.signal="bounce down";
 				processTradeEvent(TRADE_EVENT.KICKASS_SHORT);
 			}
-			else if(trade.signal=="ShortSwingOut"){
+			else if(trade.dir<0&&(true||trade.signal=="ShortSwingOut")){
 				trade.target=trade.stop;
 				//trade.stop=12;
 				trade.signal="bounce up";
@@ -884,7 +883,7 @@ namespace NinjaTrader.Strategy
 		protected override int getExitStop(){
 			if(trade.dir>0){
 				if(trade.type=="SWING_OUT"){
-					return (int) Math.Max((int)(tick.ask-range.high)*tf+tm,minStop*tm);
+					return (int) Math.Max((int)(tick.ask-range.low)*tf+tm,minStop*tm);
 				}
 				else{
 					return (int) trade.stop;
@@ -892,7 +891,7 @@ namespace NinjaTrader.Strategy
 			}
 			else if (trade.dir<0){
 				if(trade.type=="SWING_OUT"){
-					return(int) Math.Max((int)(range.low-tick.bid)*tf+tm,minStop*tm);
+					return(int) Math.Max((int)(range.high-tick.bid)*tf+tm,minStop*tm);
 					
 				}
 				else{
