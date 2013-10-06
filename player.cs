@@ -62,6 +62,7 @@ namespace NinjaTrader.Strategy
 			public bool breakout;
 			public int breakoutCount;
 			public int lastSwingInDir;
+			public int bias;
 		};
 		public struct Candle{
 			public double high;
@@ -106,6 +107,7 @@ namespace NinjaTrader.Strategy
 		private int     minStop=16;
 		private int     kickassStop=18;
 		private int     kickassTarget=3;
+		private int     iTime;
 
 		bool 		virgin		=	true;																			//detects first live tick to reset any existing ranges
 		Range		range		=	new Range();
@@ -122,7 +124,7 @@ namespace NinjaTrader.Strategy
 				}
 			}
 			//logState("barDetector");
-			int iTime=ToTime(Time[0]);	
+			iTime=ToTime(Time[0]);	
 			
 			if((iTime>=iLastEntryTime&&iTime<iRestartTime)){													// detect regular trading pause TODO: get trading hours from the exchange to support short days
 				range.active=false;
@@ -130,150 +132,32 @@ namespace NinjaTrader.Strategy
 			}
 			
 			#region Range Chart Drawing
-			if(range.active){																					// delayed drawing of the range lines on a 5min tick
-				int startingBar=bar-range.startBar+range.period;
-				DrawLine("uwline"+range.startBar,true,startingBar,range.high,1,
-					range.high,Color.DarkOliveGreen,DashStyle.Solid,1);
-				DrawLine("dwline"+range.startBar,true,startingBar,range.low,1,
-					range.low,Color.DarkBlue,DashStyle.Solid,1);
-				DrawLine("mline"+ range.startBar,true,startingBar,range.median,1,
-					range.median,Color.DarkGray,DashStyle.Dash,1);
-				DrawText( "t"+range.startBar,true,"R:"+range.amplitude+"  Total:"
-					+gainTotal.ToString("c"),bar
-					-range.startBar+range.period,range.high+lineNum()*0.25,20,Color.Black, 
-					new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-			}
+				if(range.active){																					// delayed drawing of the range lines on a 5min tick
+					int startingBar=bar-range.startBar+range.period;
+					DrawLine("uwline"+range.startBar,true,startingBar,range.high,1,
+						range.high,Color.DarkOliveGreen,DashStyle.Solid,1);
+					DrawLine("dwline"+range.startBar,true,startingBar,range.low,1,
+						range.low,Color.DarkBlue,DashStyle.Solid,1);
+					DrawLine("mline"+ range.startBar,true,startingBar,range.median,1,
+						range.median,Color.DarkGray,DashStyle.Dash,1);
+					DrawText( "t"+range.startBar,true,"R:"+range.amplitude+"  Total:"
+						+gainTotal.ToString("c"),bar
+						-range.startBar+range.period,range.high+lineNum()*0.25,20,Color.Black, 
+						new Font("Ariel",8),StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+				}
 			#endregion
 			int pos= getPos();
 			
 			if(bar>maxPeriod&&!range.active){
 				//range detection
-				
-				int r=maxPeriod+1;
-				while(r>minPeriod){
-					r--;
-					double mx=Math.Max(MAX(Closes[3],r)[0],MAX(Opens[3],r)[0]);									// high-end of the body (narrow) range
-					double mn=Math.Min(MIN(Closes[2],r)[0],MIN(Opens[2],r)[0]); 								// low-end of the body range
-					double mxh=MAX(Highs[3],r)[3];            													// high end of the full (wide) range 
-					double mnh=MIN(Lows[2],r)[2];																// low-end of the wide range
-					
-					double wr=mxh-mnh;																			// wide range, high to lows
-					double nr=mx-mn;										    								// narrow range, for bodies only	
-					if(wr<=maxRange/4&&wr>=minRange/4){								   							// max range					
-									
-						double rm=mnh+wr/2;																		// range median
-						
-						//accumullators
-						double sbup=0, sbdn=0, sbh=0, sbl=0,sbm=0;
-						
-						//is first half a range on its own	
-						int hrp=r/2;
-						int count=0;
-						bool touchedTop=false;																	// at least one bar in this half touched top
-						bool touchedBottom=false;																// at least one bar in this half touched bottom
-											
-						for(int i=0;i<hrp;i++){
-							double top=Math.Max(Opens[2][i],Closes[2][i]);
-							double btm=Math.Min(Opens[3][i],Closes[3][i]);
-							sbup+=top;       																	// high-end of the candle body
-							sbdn+=btm;       																	// low-end of the candle body
-							if(top>=mx&&btm<=rm)
-								touchedTop=true;
-							if(btm<=mn&&top>=rm)
-								touchedBottom=true;
-							count++;
-						}
-						//averages:
-						double abup=sbup/count;
-						double abdn=sbdn/count;
-						
-						if((abdn<rm&&abup>rm)/*&&touchedTop&&touchedBottom*/){
-							//second half resets:
-							sbup=0;	sbdn=0;	sbh=0;	sbl=0;
-							count=0;
-							touchedTop=false;
-							touchedBottom=false;
-							
-							for(int i=hrp;i<r;i++){
-								double top=Math.Max(Opens[2][i],Closes[2][i]);
-								double btm=Math.Min(Opens[3][i],Closes[3][i]);
-								sbup+=top;      		 														// high-end of the candle body
-								sbdn+=btm;       																// low-end of the candle body
-								if(top>=mx&&btm<=rm)
-									touchedTop=true;
-								if(btm<=mn&&top>=rm)
-									touchedBottom=true;
-								//log("TRACE sbdn["+i+"]+"+Math.Min(Opens[3][i],Closes[3][i]));
-								//sbh+=Highs[3][i];																// high
-								//sbl+=Lows[2][i];																// low
-								count++;
-							}
-							//averages:
-							abup=sbup/count;
-							abdn=sbdn/count;
-							if((abdn<rm&&abup>rm)){																// range detected
-								double er=(wr*4);
-								
-								if(nr*4<minRange||er>maxRange||nr>wr)
-									continue;
-								//verify that the data is good:
-								int lastBid=ToTime(Times[4][0]);
-								int lastAsk=ToTime(Times[5][0]);
-								if((ToTime(Time[0])-lastBid<60)&&ToTime(Time[0])-lastAsk<60){					//gap less than 60 secs
-									//Starting a new range:
-									double tgt=(1.0/(er));//+2;;
-									
-									tgt=(tgt*tgt*4*r*(wr-nr)*3+hrp);
-									//tgt=Math.Round(tgt,0);
-									tgt=(int)tgt;
-									//tgt=5;
-									//log("proposed tgt="+tgt);
-									if(tgt>=2){
-									/************************************************************************/
-									//  RANGE START
-										//bounceTriggered=false;												//reset secondary (bounce) watch
-										//breakRange=false;														//reset hard break of the range indicator
-										//noEntry=false;
-										range.active=true;														//set watch indicator
-										range.high=mxh;
-										range.low=mnh;
-										range.median=mnh+(mxh-mnh)/2;
-										range.amplitude=(int)er;
-										range.breakoutTarget=Math.Round(tgt,0); 
-										range.lastSwingInDir=0;
-										//preBounce=false;
-										//target=Math.Max(target,2);
-										range.startBar=bar;
-										range.period=r;
-										range.breakout=false;
-										range.breakoutCount=0;
-										//logState("RANGE DETECTED");
-										/*log("START WATCH target="+target+";range="+enteredRange+";rangePeriod="
-											+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="
-											+bounceTriggered+";breakRange="+breakRange);*/
-										DrawDiamond("dm"+CurrentBars[1],true,0,range.high+0.25,Color.Blue);
-										if(gainTotal>0){
-											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
-											0,range.high+lineNum()*0.25,20,Color.Green, new Font("Ariel",8),
-											StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-										}
-										else{
-											DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
-											0,range.high+lineNum()*0.25,20,Color.Red, new Font("Ariel",8),
-											StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-										}
-										processRangeEvent(RANGE_EVENT.DETECT);
-									/************************************************************************/											
-									}
-								break;
-								}
-							}
-						}
-					}									
-				}
+				detectRange();
+				detectRangeBias();
+			
+			}else if(range.active) {
+				detectRangeBias();
 			}
 			
-			else if(range.active&&(tick.bid>range.high||tick.ask<range.low)){
+			if(range.active&&(tick.bid>range.high||tick.ask<range.low)){
 				if(range.breakout||range.breakoutCount>2){
 					range.active=false;
 					processRangeEvent(RANGE_EVENT.BREAKOUT);
@@ -342,6 +226,150 @@ namespace NinjaTrader.Strategy
 				}*/
 
 			}
+		}
+		protected void detectRange(){
+			int r=maxPeriod+1;
+			while(r>minPeriod){
+				r--;
+				double mx=Math.Max(MAX(Closes[3],r)[0],MAX(Opens[3],r)[0]);									// high-end of the body (narrow) range
+				double mn=Math.Min(MIN(Closes[2],r)[0],MIN(Opens[2],r)[0]); 								// low-end of the body range
+				double mxh=MAX(Highs[3],r)[3];            													// high end of the full (wide) range 
+				double mnh=MIN(Lows[2],r)[2];																// low-end of the wide range
+				
+				double wr=mxh-mnh;																			// wide range, high to lows
+				double nr=mx-mn;										    								// narrow range, for bodies only	
+				if(wr<=maxRange/4&&wr>=minRange/4){								   							// max range					
+								
+					double rm=mnh+wr/2;																		// range median
+					
+					//accumullators
+					double sbup=0, sbdn=0, sbh=0, sbl=0,sbm=0;
+					
+					//is first half a range on its own	
+					int hrp=r/2;
+					int count=0;
+					bool touchedTop=false;																	// at least one bar in this half touched top
+					bool touchedBottom=false;																// at least one bar in this half touched bottom
+										
+					for(int i=0;i<hrp;i++){
+						double top=Math.Max(Opens[2][i],Closes[2][i]);
+						double btm=Math.Min(Opens[3][i],Closes[3][i]);
+						sbup+=top;       																	// high-end of the candle body
+						sbdn+=btm;       																	// low-end of the candle body
+						if(top>=mx&&btm<=rm)
+							touchedTop=true;
+						if(btm<=mn&&top>=rm)
+							touchedBottom=true;
+						count++;
+					}
+					//averages:
+					double abup=sbup/count;
+					double abdn=sbdn/count;
+					
+					if((abdn<rm&&abup>rm)/*&&touchedTop&&touchedBottom*/){
+						//second half resets:
+						sbup=0;	sbdn=0;	sbh=0;	sbl=0;
+						count=0;
+						touchedTop=false;
+						touchedBottom=false;
+						
+						for(int i=hrp;i<r;i++){
+							double top=Math.Max(Opens[2][i],Closes[2][i]);
+							double btm=Math.Min(Opens[3][i],Closes[3][i]);
+							sbup+=top;      		 														// high-end of the candle body
+							sbdn+=btm;       																// low-end of the candle body
+							if(top>=mx&&btm<=rm)
+								touchedTop=true;
+							if(btm<=mn&&top>=rm)
+								touchedBottom=true;
+							//log("TRACE sbdn["+i+"]+"+Math.Min(Opens[3][i],Closes[3][i]));
+							//sbh+=Highs[3][i];																// high
+							//sbl+=Lows[2][i];																// low
+							count++;
+						}
+						//averages:
+						abup=sbup/count;
+						abdn=sbdn/count;
+						if((abdn<rm&&abup>rm)){																// range detected
+							double er=(wr*4);
+							
+							if(nr*4<minRange||er>maxRange||nr>wr)
+								continue;
+							//verify that the data is good:
+							int lastBid=ToTime(Times[4][0]);
+							int lastAsk=ToTime(Times[5][0]);
+							if((ToTime(Time[0])-lastBid<60)&&ToTime(Time[0])-lastAsk<60){					//gap less than 60 secs
+								//Starting a new range:
+								double tgt=(1.0/(er));//+2;;
+								
+								tgt=(tgt*tgt*4*r*(wr-nr)*3+hrp);
+								//tgt=Math.Round(tgt,0);
+								tgt=(int)tgt;
+								//tgt=5;
+								//log("proposed tgt="+tgt);
+								if(tgt>=2){
+								/************************************************************************/
+								//  RANGE START
+									//bounceTriggered=false;												//reset secondary (bounce) watch
+									//breakRange=false;														//reset hard break of the range indicator
+									//noEntry=false;
+									range.active=true;														//set watch indicator
+									range.high=mxh;
+									range.low=mnh;
+									range.median=mnh+(mxh-mnh)/2;
+									range.amplitude=(int)er;
+									range.breakoutTarget=Math.Round(tgt,0); 
+									range.lastSwingInDir=0;
+									//preBounce=false;
+									//target=Math.Max(target,2);
+									range.startBar=bar;
+									range.period=r;
+									range.breakout=false;
+									range.breakoutCount=0;
+									//logState("RANGE DETECTED");
+									/*log("START WATCH target="+target+";range="+enteredRange+";rangePeriod="
+										+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="
+										+bounceTriggered+";breakRange="+breakRange);*/
+									DrawDiamond("dm"+CurrentBars[1],true,0,range.high+0.25,Color.Blue);
+									if(gainTotal>0){
+										DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
+										0,range.high+lineNum()*0.25,20,Color.Green, new Font("Ariel",8),
+										StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+									}
+									else{
+										DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
+										0,range.high+lineNum()*0.25,20,Color.Red, new Font("Ariel",8),
+										StringAlignment.Near,Color.Transparent,Color.Beige, 0);
+									}
+									processRangeEvent(RANGE_EVENT.DETECT);
+								/************************************************************************/											
+								}
+							break;
+							}
+						}
+					}
+				}									
+			}
+		}
+		protected void detectRangeBias(){
+			double sbup=0, sbdn=0;
+			int currentRangeLength=bar-range.startBar;
+			for(int i=0;i<currentRangeLength;i++){
+				double top=Math.Max(Opens[2][i],Closes[2][i]);
+				double btm=Math.Min(Opens[3][i],Closes[3][i]);
+				sbup+=top;       																	// high-end of the candle body
+				sbdn+=btm;  
+			}
+			double abup=sbup/currentRangeLength;
+			double abdn=sbdn/currentRangeLength;
+			double abm=abdn+(abup-abdn)/2;
+			if(abm>range.median+(range.high-range.median)/2)
+				range.bias= 1;
+			else if(abm<range.median-(range.median-range.low)/2)
+				range.bias= -1;
+			else	
+				range.bias=0;		
+
 		}
 		//This method measures and deconstructs last three candles to be used by kickass indicators
 		protected void loadCandlesticks(){
@@ -500,7 +528,7 @@ namespace NinjaTrader.Strategy
 			if(dir>0){
 				low_water=Math.Min(low_water,lBot);
 				high_water=Math.Max(high_water,lTop);
-				if(nLow>lLow&&nTop>level&&level-low_water>9/tf){	//found first above the level
+				if(nLow>lLow&&nTop>level&&level-low_water>4/tf){	//found first above the level
 					
 					if(engulfik3(b+1,dir,low_water,nTop,level)) {// 3d recursion to check if it will climb to twice level-lMin befor hitting new min
 						if(r==0)	//if checking on behalf of top level primary recursion
@@ -527,7 +555,7 @@ namespace NinjaTrader.Strategy
 			else{
 				low_water=Math.Max(low_water,lTop);
 				high_water=Math.Min(high_water,lBot);
-				if(nHigh<lHigh&&nBot<level&&low_water-level>9/tf){
+				if(nHigh<lHigh&&nBot<level&&low_water-level>4/tf){
 					if(engulfik3(b+1,dir,low_water,nBot,level)){ // end scenario
 						if(r==0)
 							CandleOutlineColorSeries[b]=Color.Chartreuse;
@@ -724,6 +752,10 @@ namespace NinjaTrader.Strategy
 					logState("TRADE EVENT "+e);	
 					break;
 				case TRADE_EVENT.SWING_OUT_LONG:
+					if(range.bias==-1){
+						log("RANGE BIAS IN CONFLICT, NO TRADE");
+						return;
+					}
 					trade.dir=1;
 					trade.type="SWING_OUT";
 					trade.target=range.breakoutTarget;
@@ -734,6 +766,10 @@ namespace NinjaTrader.Strategy
 					logState("TRADE EVENT "+e);	
 					break;
 				case TRADE_EVENT.SWING_OUT_SHORT:
+					if(range.bias==1){
+						log("RANGE BIAS IN CONFLICT, NO TRADE");
+						return;
+					}
 					trade.dir=-1;
 					trade.type="SWING_OUT";
 					trade.target=range.breakoutTarget;
