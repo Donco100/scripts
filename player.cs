@@ -94,18 +94,18 @@ namespace NinjaTrader.Strategy
 		private double 	minRange=4;
 		private int 	maxPeriod=18;
 		private int 	minPeriod=3;
-		private int 	timeLimitTrade=12;
+		private int 	timeLimitTrade=120;
 		private int     tm=1;	
 		private bool    allowSwingOut=true;		
 		private bool 	allowPreBounce=false;
-		private bool	allowLongTradesKill=true;
+		private bool	allowLongTradesKill=false;
 		private bool    allowKickass=true;
 		private bool 	allowBounce=true;
 		private bool    allowGulfik=false;
-		private int     maxLookBackEngulfik=6;
+		private int     maxLookBackEngulfik=9;
 		private int 	maxExtendLookBackEngulfik=36;
-		private int     minStop=16;
-		private int     kickassStop=18;
+		private int     minStop=6;
+		private int     kickassStop=6;
 		private int     kickassTarget=3;
 		private int     iTime;
 
@@ -331,7 +331,7 @@ namespace NinjaTrader.Strategy
 										+enteredPeriod+";WATCH UP="+watch_up+";DOWN="+watch_down+";bounceTriggered="
 										+bounceTriggered+";breakRange="+breakRange);*/
 									DrawDiamond("dm"+CurrentBars[1],true,0,range.high+0.25,Color.Blue);
-									if(gainTotal>0){
+									/*if(gainTotal>0){
 										DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
 										0,range.high+lineNum()*0.25,20,Color.Green, new Font("Ariel",8),
 										StringAlignment.Near,Color.Transparent,Color.Beige, 0);
@@ -340,7 +340,7 @@ namespace NinjaTrader.Strategy
 										DrawText( "tm2"+CurrentBars[1],true,"TOTAL: "+gainTotal.ToString("c") ,
 										0,range.high+lineNum()*0.25,20,Color.Red, new Font("Ariel",8),
 										StringAlignment.Near,Color.Transparent,Color.Beige, 0);
-									}
+									}*/
 									processRangeEvent(RANGE_EVENT.DETECT);
 								/************************************************************************/											
 								}
@@ -734,14 +734,20 @@ namespace NinjaTrader.Strategy
 				case TRADE_EVENT.KICKASS_LONG:
 					trade.dir=1;
 					trade.type="KICKASS";
-					enterLongMarket();
+					if(Historical)
+						enterLongMarket();
+					else
+						enterLong(tick.ask);
 					logState("TRADE EVENT "+e);	
 					break;
 				case TRADE_EVENT.BOUNCE_SHORT:
 				case TRADE_EVENT.KICKASS_SHORT:
 					trade.dir=-1;
 					trade.type="KICKASS";
-					enterShortMarket();
+					if(Historical)
+						enterShortMarket();
+					else
+						enterShort(tick.bid);	
 					logState("TRADE EVENT "+e);	
 					break;	
 				case TRADE_EVENT.EXIT_ON_EOD:
@@ -761,7 +767,10 @@ namespace NinjaTrader.Strategy
 					trade.target=range.breakoutTarget;
 					trade.stop=19;//(tick.ask-range.low)*tf+tm*2;
 					trade.signal="LongSwingOut";
-					enterLongMarket();
+					if(Historical)
+						enterLongMarket();
+					else
+						enterLong(tick.ask);
 					//enterLong(tick.bid);
 					logState("TRADE EVENT "+e);	
 					break;
@@ -775,7 +784,10 @@ namespace NinjaTrader.Strategy
 					trade.target=range.breakoutTarget;
 					trade.stop=19;//(range.high-tick.bid)*tf+tm*2;
 					trade.signal="ShortSwingOut";
-					enterShortMarket();
+					if(Historical)
+						enterShortMarket();
+					else
+						enterShort(tick.bid);	
 					//enterShort(tick.ask);
 					logState("TRADE EVENT "+e);	
 					break;
