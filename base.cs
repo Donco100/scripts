@@ -147,11 +147,12 @@ namespace NinjaTrader.Strategy
 				if(CurrentBar==currentBar)
 					return;
 				currentBar=CurrentBar;
-				tick0(CurrentBar);																					//misc bar 0 processing
+				
 				if(!Historical){
-					tick.bid=GetCurrentBid(1);
-					tick.ask=GetCurrentAsk(1);
+					tick.bid=GetCurrentBid(0);
+					tick.ask=GetCurrentAsk(0);
 				}
+				tick0(CurrentBar);																					//misc bar 0 processing
 				barDetector();
 				if(!Historical){
 					logState("HEARTBEAT["+strategyName+"]");
@@ -164,8 +165,8 @@ namespace NinjaTrader.Strategy
 				}
 				else if(!Historical){
 					
-					tick.bid=GetCurrentBid(1);
-					tick.ask=GetCurrentAsk(1);
+					tick.bid=GetCurrentBid(0);
+					tick.ask=GetCurrentAsk(0);
 					if(checkMarginCall())
 						tickDetector();
 					//heartbeat();
@@ -174,11 +175,15 @@ namespace NinjaTrader.Strategy
 		}
 		protected void checkNumContracts(){
 				if(!Historical){
-					gainTotal=GetAccountValue(AccountItem.CashValue)/maxmargin;
+					log("VALUE:"+GetAccountValue(AccountItem.CashValue));
+					gainTotal=GetAccountValue(AccountItem.CashValue);
 				}
 				NumContracts=(int)(gainTotal/maxmargin);
-				if(NumContracts==0||gainTotal<maxmargin)
+				if(NumContracts==0||gainTotal<maxmargin){
+					logState("Disabling strategy: NumContracts="+NumContracts+";gainTotal="+gainTotal+";maxmargin="+maxmargin);
 					Disable();
+					log("DISABLED");
+				}
 				log("CHECK_NUM_CONTRACTS:"+NumContracts);
 		}
 		protected bool checkMarginCall(){
