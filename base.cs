@@ -155,7 +155,7 @@ namespace NinjaTrader.Strategy
 				tick0(CurrentBar);																					//misc bar 0 processing
 				barDetector();
 				if(!Historical){
-					logState("HEARTBEAT["+strategyName+"]");
+					logState("HEARTBEAT["+strategyName+"]["+NumContracts+"]["+gainTotal+"]");
 				}
 			}
 			if(BarsInProgress==4||BarsInProgress==5||BarsInProgress==0){
@@ -175,7 +175,7 @@ namespace NinjaTrader.Strategy
 		}
 		protected void checkNumContracts(){
 				if(!Historical){
-					log("VALUE:"+GetAccountValue(AccountItem.CashValue));
+					//log("VALUE:"+GetAccountValue(AccountItem.CashValue));
 					gainTotal=GetAccountValue(AccountItem.CashValue);
 				}
 				NumContracts=(int)(gainTotal/maxmargin);
@@ -184,7 +184,8 @@ namespace NinjaTrader.Strategy
 					Disable();
 					log("DISABLED");
 				}
-				log("CHECK_NUM_CONTRACTS:"+NumContracts);
+				//if(!Historical)
+				//	log("CHECK_NUM_CONTRACTS:"+NumContracts);
 		}
 		protected bool checkMarginCall(){
 			Position pES=Positions[OrderBarIndex];
@@ -435,6 +436,7 @@ namespace NinjaTrader.Strategy
 						ex.pendingShortExit=true;
 						ex.pendingLongExit=false;
 					}
+					trade.enteredContracts-=execution.Quantity;
 					double currentExit=execution.Order.AvgFillPrice;
 					double gain=0;
 					
@@ -446,7 +448,7 @@ namespace NinjaTrader.Strategy
 					double net_gain=(gain*4*12.5-4)*execution.Quantity;
 					gainTotal+=net_gain;
 					log("EXITED{"+execution.Name+"} at "+currentExit+";$$$$$$ gain="+gain+";net="+net_gain.ToString("C")+"; $$$$$ total="+gainTotal.ToString("C"));
-				
+					
 					if(ex.stopOrder!=null&&execution.Order!=ex.stopOrder){
 						CancelOrder(ex.stopOrder);
 					}
@@ -455,11 +457,21 @@ namespace NinjaTrader.Strategy
 					}	
 					ex.exitOrder=null;		
 					ex.stopOrder=null;
-					if(net_gain<0){
+					if(trade.enteredContracts==0&&net_gain<0){
 						reportLoss();
+						alertEmail("TRADE LOSS Gain:"+gain+";Account.CashValue:"+gainTotal.ToString("C")+";Signal:"+execution.Name,"");
+						trade.pending=false;
+						ex.pendingLongExit=false;
+						ex.pendingShortExit=false;
+						trade.entry=0;
 					}
-					else{
+					else if(trade.enteredContracts==0&&net_gain>0){
 						reportWin();
+						alertEmail("TRADE WIN Gain:"+gain+";Account.CashValue:"+gainTotal.ToString("C")+";Signal:"+execution.Name,"");
+						trade.pending=false;
+						ex.pendingLongExit=false;
+						ex.pendingShortExit=false;
+						trade.entry=0;
 					}
 			
 				}	
@@ -467,6 +479,11 @@ namespace NinjaTrader.Strategy
 		}
 		protected virtual void reportLoss(){}
 		protected virtual void reportWin(){}
+		protected virtual void alertEmail(String subject,String message){
+			//string s="Finished Simulated Session "+strategyName+"  "+ToDay(firstTime)+"-"+ToDay(t)+"\n 	Range="+Range+";RangePeriod="+RangePeriod+";MinRangePeriod="+minRangePeriod+"\n GainTotal="+gainTotal.ToString("c");
+			SendMail("adaptive.kolebator@gmail.com", "adaptive.kolebator@gmail.com", subject, message);
+			
+		}
 		protected override void OnTermination(){
   			string s="hello";
 			//string s="Finished Simulated Session "+strategyName+"  "+ToDay(firstTime)+"-"+ToDay(t)+"\n 	Range="+Range+";RangePeriod="+RangePeriod+";MinRangePeriod="+minRangePeriod+"\n GainTotal="+gainTotal.ToString("c");
