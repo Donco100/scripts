@@ -106,7 +106,7 @@ namespace NinjaTrader.Strategy
 		protected double		tf				=	4;																//tick fraction - how many ticks per point; 4 for QM, 1 for YM
 		protected DateTime 		t;																					//current exchange time
 		protected int 			lineCount		=	0;																//shift text lines on the chart so that they do not overlap
-		
+		private   Object 		thisLock 		= 	new Object();													//used to synchronize OnExecution
         #endregion
 		protected abstract void start();
 		protected override void OnStartUp(){
@@ -376,8 +376,7 @@ namespace NinjaTrader.Strategy
 			}
 		}
 		protected override void OnPositionUpdate(IPosition position){
-			checkNumContracts();
-			if(trade.pending){
+			//if(trade.pending){
 				if (Positions[OrderBarIndex].MarketPosition == MarketPosition.Flat){
 					if(ex.pendingLongExit||ex.pendingShortExit){
 						logState("EXITED FLAT signal="+trade.signal);
@@ -385,6 +384,7 @@ namespace NinjaTrader.Strategy
 						ex.pendingLongExit=false;
 						ex.pendingShortExit=false;
 						trade.entry=0;
+						checkNumContracts();
 					}
 				}
 				if(ex.pendingLongEntry){
@@ -412,10 +412,10 @@ namespace NinjaTrader.Strategy
 						}*/
 					}
 				}
-			}
+			//}
 		}
 		protected override void OnExecution(IExecution execution){
-			checkNumContracts();
+			
 			if (execution.Order != null && execution.Order.OrderState == OrderState.Filled){
 				//log("Execution:"+execution.ToString());
 				if (ex.entryOrder != null && ex.entryOrder == execution.Order){
@@ -428,52 +428,58 @@ namespace NinjaTrader.Strategy
 					//ex.pendingShortEntry=false;
 				}
 				else{
-					if(execution.Order.OrderAction.CompareTo(OrderAction.Sell)==0){
-						ex.pendingLongExit=true;
-						ex.pendingShortExit=false;
+
+					lock (thisLock){
+						if(execution.Order.OrderAction.CompareTo(OrderAction.Sell)==0){
+							ex.pendingLongExit=true;
+							ex.pendingShortExit=false;
+						}
+						else{
+							ex.pendingShortExit=true;
+							ex.pendingLongExit=false;
+						}
+						trade.enteredContracts-=execution.Quantity;
+						double currentExit=execution.Order.AvgFillPrice;
+						double gain=0;
+						
+						if(ex.pendingLongExit){
+							gain=(currentExit-trade.entry);
+						}else if(ex.pendingShortExit){
+							gain=(trade.entry-currentExit);
+						}
+						double net_gain=(gain*4*12.5-4)*execution.Quantity;
+						gainTotal+=net_gain;
+						log("EXITED{"+execution.Name+"} at "+currentExit+";$$$$$$ gain="+gain+";net="+net_gain.ToString("C")+"; $$$$$ total="+gainTotal.ToString("C"));
+						
+						if(ex.stopOrder!=null&&execution.Order!=ex.stopOrder){
+							CancelOrder(ex.stopOrder);
+						}
+						else if(ex.exitOrder!=null&&execution.Order==ex.exitOrder){	
+							CancelOrder(ex.exitOrder);	
+						}	
+						ex.exitOrder=null;		
+						ex.stopOrder=null;
+						if(trade.enteredContracts==0&&net_gain<0){
+							
+							alertEmail("TRADE LOSS Gain:"+gain+";Account.CashValue:"+gainTotal.ToString("C")+";Signal:"+trade.signal+";"+execution.Name,"");
+							trade.pending=false;
+							ex.pendingLongExit=false;
+							ex.pendingShortExit=false;
+							checkNumContracts();
+							reportLoss();
+							//trade.entry=0;
+						}
+						else if(trade.enteredContracts==0&&net_gain>0){
+							
+							alertEmail("TRADE WIN Gain:"+gain+";Account.CashValue:"+gainTotal.ToString("C")+";Signal:"+trade.signal+";"+execution.Name,"");
+							trade.pending=false;
+							ex.pendingLongExit=false;
+							ex.pendingShortExit=false;
+							checkNumContracts();
+							reportWin();
+							//trade.entry=0;
+						}
 					}
-					else{
-						ex.pendingShortExit=true;
-						ex.pendingLongExit=false;
-					}
-					trade.enteredContracts-=execution.Quantity;
-					double currentExit=execution.Order.AvgFillPrice;
-					double gain=0;
-					
-					if(ex.pendingLongExit){
-						gain=(currentExit-trade.entry);
-					}else if(ex.pendingShortExit){
-						gain=(trade.entry-currentExit);
-					}
-					double net_gain=(gain*4*12.5-4)*execution.Quantity;
-					gainTotal+=net_gain;
-					log("EXITED{"+execution.Name+"} at "+currentExit+";$$$$$$ gain="+gain+";net="+net_gain.ToString("C")+"; $$$$$ total="+gainTotal.ToString("C"));
-					
-					if(ex.stopOrder!=null&&execution.Order!=ex.stopOrder){
-						CancelOrder(ex.stopOrder);
-					}
-					else if(ex.exitOrder!=null&&execution.Order==ex.exitOrder){	
-						CancelOrder(ex.exitOrder);	
-					}	
-					ex.exitOrder=null;		
-					ex.stopOrder=null;
-					if(trade.enteredContracts==0&&net_gain<0){
-						reportLoss();
-						alertEmail("TRADE LOSS Gain:"+gain+";Account.CashValue:"+gainTotal.ToString("C")+";Signal:"+execution.Name,"");
-						trade.pending=false;
-						ex.pendingLongExit=false;
-						ex.pendingShortExit=false;
-						trade.entry=0;
-					}
-					else if(trade.enteredContracts==0&&net_gain>0){
-						reportWin();
-						alertEmail("TRADE WIN Gain:"+gain+";Account.CashValue:"+gainTotal.ToString("C")+";Signal:"+execution.Name,"");
-						trade.pending=false;
-						ex.pendingLongExit=false;
-						ex.pendingShortExit=false;
-						trade.entry=0;
-					}
-			
 				}	
 			}
 		}
