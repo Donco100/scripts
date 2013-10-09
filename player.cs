@@ -935,20 +935,16 @@ namespace NinjaTrader.Strategy
 		protected override int getExitStop(){
 			if(trade.dir>0){
 				if(trade.type=="SWING_OUT"){
-					return (int) Math.Max((int)(tick.ask-range.low)*tf+tm,minStop*tm);
+					trade.stop= (int) Math.Max((int)(tick.ask-range.low)*tf+tm,minStop*tm);
 				}
-				else{
-					return (int) trade.stop;
-				}
+				return (int) trade.stop;
 			}
 			else if (trade.dir<0){
 				if(trade.type=="SWING_OUT"){
-					return(int) Math.Max((int)(range.high-tick.bid)*tf+tm,minStop*tm);
+					trade.stop=(int) Math.Max((int)(range.high-tick.bid)*tf+tm,minStop*tm);
 					
 				}
-				else{
-					return (int) trade.stop;
-				}
+				return (int) trade.stop;
 			}
 			return 0;
 		}
